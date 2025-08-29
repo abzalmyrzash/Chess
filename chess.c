@@ -232,9 +232,9 @@ char getPieceSymbol(PieceInfo p)
 PieceInfo symbolToPiece(char c)
 {
 	PieceColor color;
-	if (c >= 'A' && 'Z') {
+	if (c >= 'A' && c <= 'Z') {
 		color = WHITE;
-	} else if (c >= 'a' && 'z') {
+	} else if (c >= 'a' && c <= 'z') {
 		color = BLACK;
 		c -= 32; // to uppercase
 	} else {
@@ -430,6 +430,17 @@ void undoMove(GameState* game)
 		break;
 	}
 	game->colorToMove = getEnemyColor(game->colorToMove);
+
+	if (game->moveCnt == 0) {
+		game->enPassantFile = NONE;
+		return;
+	}
+	Move prevMove = game->history[game->moveCnt - 1];
+	if (prevMove.type == DOUBLESTEP) {
+		game->enPassantFile = getPos(prevMove.from).file;
+	} else {
+		game->enPassantFile = NONE;
+	}
 }
 
 void redoMove(GameState* game)
@@ -518,7 +529,8 @@ Move moveByNotation(char *notation, GameState* game)
 	Position from = notationToPos(notation);
 	Position to = notationToPos(notation + 2);
 	PieceInfo piece = symbolToPiece(notation[4]);
-	PieceType prom = piece == NONE ? NONE : getPieceType(piece);
+	PieceType prom = getPieceType(piece);
+	if (prom < KNIGHT || prom > QUEEN) prom = NONE;
 	return makeMove(from, to, prom, game);
 }
 
