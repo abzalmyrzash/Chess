@@ -48,12 +48,17 @@ void createPiece(PieceColor color, PieceType type,
 	cnt[color]++;
 }
 
-bool isEmpty(Position pos, GameState* game)
+bool isPosEmpty(Position pos, const GameState* game)
 {
 	return game->board[pos.rank][pos.file] == NONE;
 }
 
-Piece getPiece(Position pos, GameState* game)
+bool isPosEmptyOrInvalid(Position pos, const GameState* game)
+{
+	return isPosEmpty(pos, game) || !isPosValid(pos);
+}
+
+Piece getPiece(Position pos, const GameState* game)
 {
 	return *((Piece*)game->pieces + game->board[pos.rank][pos.file]);
 }
@@ -61,6 +66,16 @@ Piece getPiece(Position pos, GameState* game)
 static Piece* getPiecePtr(Position pos, GameState* game)
 {
 	return ((Piece*)game->pieces + game->board[pos.rank][pos.file]);
+}
+
+Piece getPieceByRef(PieceRef ref, const GameState* game)
+{
+	return *((Piece*)game->pieces + ref);
+}
+
+static Piece* getPiecePtrByRef(PieceRef ref, GameState* game)
+{
+	return ((Piece*)game->pieces + ref);
 }
 
 PieceColor getPieceColor(PieceInfo p)
@@ -102,7 +117,7 @@ bool isPosValid(Position pos)
 }
 
 bool isPosEqual(Position p1, Position p2) {
-	return p1.rank == p2.rank && p1.file == p2.rank;
+	return p1.rank == p2.rank && p1.file == p2.file;
 }
 
 Position notationToPos(char* notation)
@@ -121,22 +136,22 @@ void posToNotation(Position pos, char* notation)
 
 void movePiece(Position from, Position to, GameState* game)
 {
+	getPiecePtr(from, game)->pos = compPos(to);
 	game->board[to.rank][to.file] = game->board[from.rank][from.file];
 	game->board[from.rank][from.file] = NONE;
-	getPiecePtr(from, game)->pos = compPos(to);
 }
 
 PieceRef capturePiece(Position pos, GameState* game)
 {
-	getPiecePtr(pos, game)->pos = NONE;
 	PieceRef piece = game->board[pos.rank][pos.file];
+	getPiecePtrByRef(piece, game)->pos = NONE;
 	game->board[pos.rank][pos.file] = NONE;
 	return piece;
 }
 
 void undoCapture(Position pos, PieceRef piece, GameState* game)
 {
-	getPiecePtr(pos, game)->pos = compPos(pos);
+	getPiecePtrByRef(piece, game)->pos = compPos(pos);
 	game->board[pos.rank][pos.file] = piece;
 }
 
@@ -259,7 +274,7 @@ PieceInfo symbolToPiece(char c)
 	}
 }
 
-void printBoard(GameState* game)
+void printBoard(const GameState* game)
 {
 	Position pos;
 	printf(" +");
@@ -272,7 +287,7 @@ void printBoard(GameState* game)
 		printf("%d|", i + 1);
 		for (int j = 0; j < 8; j++) {
 			pos.file = j;
-			if (isEmpty(pos, game)) printf(" |");
+			if (isPosEmpty(pos, game)) printf(" |");
 			else printf("%c|", getPieceSymbol(getPiece(pos, game).info));
 		}
 		printf("\n");
@@ -289,7 +304,7 @@ void printBoard(GameState* game)
 	printf("\n");
 }
 
-void printBoardFlipped(GameState *game)
+void printBoardFlipped(const GameState *game)
 {
 	Position pos;
 	printf(" +");
@@ -302,7 +317,7 @@ void printBoardFlipped(GameState *game)
 		printf("%d|", i + 1);
 		for (int j = 7; j >= 0; j--) {
 			pos.file = j;
-			if (isEmpty(pos, game)) printf(" |");
+			if (isPosEmpty(pos, game)) printf(" |");
 			else printf("%c|", getPieceSymbol(getPiece(pos, game).info));
 		}
 		printf("\n");
@@ -319,7 +334,7 @@ void printBoardFlipped(GameState *game)
 	printf("\n");
 }
 
-void printControlBoard(GameState *game)
+void printControlBoard(const GameState *game)
 {
 	for (int c = 0; c < 2; c++) {
 		printf(" +");
@@ -356,6 +371,20 @@ Piece checkAndGetPiece(Position pos, const char board[8][8])
 }
 */
 
+bool isMovePromotion(Position from, Position to, const GameState* game)
+{
+	PieceInfo p = getPiece(from, game).info;
+	return (p == PIECE(WHITE, PAWN) && to.rank == 7) ||
+		(p == PIECE(BLACK, PAWN) && to.rank == 0);
+}
+
+bool isPromotionValid(Position from, Position to, PieceType prom,
+	const GameState* game)
+{
+	if (isMovePromotion(from, to, game) == false) return prom == NONE;
+	return prom >= KNIGHT && prom <= QUEEN;
+}
+
 // function assumes move is legal, so check move legality before calling
 Move makeMove(Position from, Position to, PieceType promotion, GameState* game)
 {
@@ -369,7 +398,7 @@ Move makeMove(Position from, Position to, PieceType promotion, GameState* game)
 	switch (move.type)
 	{
 	case REGMOVE:
-		if (isEmpty(to, game) == false) {
+		if (isPosEmpty(to, game) == false) {
 			move.captured = capturePiece(to, game);
 		}
 		movePiece(from, to, game);
@@ -508,8 +537,24 @@ void takeCastlingRights(PieceColor c, uint8_t side, GameState* game)
 		game->whenLostCR[c][side] = game->moveCnt;
 }
 
+// must be called when making a new move
+// must not be called when redoing an undone move
 void updateCastlingRights(Position pos, GameState* game)
 {
+	if (game->moveCnt < game->totalMoves) {
+	// if we're moving after undoing,
+	// this condition will be true.
+	// here we check if we lost castling rights during
+	// the moves that we undid, if so reset whenLostCR to NEVER.
+		for (int i = 0; i < 2; i++) {
+			for (int j = 0; j < 2; j++) {
+				if (game->whenLostCR[i][j] >= game->moveCnt) {
+					game->whenLostCR[i][j] = NEVER;
+				}
+			}
+		}
+	}
+
 	PieceColor c;
 	if (pos.rank == 0) c = WHITE;
 	else if (pos.rank == 7) c = BLACK;
@@ -522,6 +567,7 @@ void updateCastlingRights(Position pos, GameState* game)
 		takeCastlingRights(c, 0, game);
 		takeCastlingRights(c, 1, game);
 	}
+
 }
 
 Move moveByNotation(char *notation, GameState* game)
@@ -531,24 +577,24 @@ Move moveByNotation(char *notation, GameState* game)
 	PieceInfo piece = symbolToPiece(notation[4]);
 	PieceType prom = getPieceType(piece);
 	if (prom < KNIGHT || prom > QUEEN) prom = NONE;
-	return makeMove(from, to, prom, game);
+	return checkAndMove(from, to, prom, game);
 }
 
-/*
+
 bool isWhitePawnMoveLegal(Position from, Position to, const GameState* game)
 {
-	char destination = game->board[to.rank][to.file];
-	if (destination == EMPTY) {
+	PieceRef capture = game->board[to.rank][to.file];
+	if (capture == NONE) {
 		if (from.rank + 1 == to.rank && from.file == to.file) return true;
 		if (from.rank == 1 && to.rank == 3 && from.file == to.file) {
-			char between = game->board[2][from.file];
-			if (between == EMPTY) {
+			PieceRef between = game->board[2][from.file];
+			if (between == NONE) {
 				return true;
 			}
 		}
 	}
 	if (from.rank + 1 == to.rank && abs(from.file - to.file) == 1) {
-		if (destination != EMPTY) {
+		if (capture != NONE) {
 			return true;
 		}
 		if (game->enPassantFile == to.file && from.rank == 4) {
@@ -560,18 +606,18 @@ bool isWhitePawnMoveLegal(Position from, Position to, const GameState* game)
 
 bool isBlackPawnMoveLegal(Position from, Position to, const GameState* game)
 {
-	char destination = game->board[to.rank][to.file];
-	if (destination == EMPTY) {
+	PieceRef capture = game->board[to.rank][to.file];
+	if (capture == NONE) {
 		if (from.rank - 1 == to.rank && from.file == to.file) return true;
 		if (from.rank == 6 && to.rank == 4 && from.file == to.file) {
-			char between = game->board[5][from.file];
-			if (between == EMPTY) {
+			PieceRef between = game->board[5][from.file];
+			if (between == NONE) {
 				return true;
 			}
 		}
 	}
 	if (from.rank - 1 == to.rank && abs(from.file - to.file) == 1) {
-		if (destination != EMPTY) {
+		if (capture != NONE) {
 			return true;
 		}
 		if (game->enPassantFile == to.file && from.rank == 3) {
@@ -581,6 +627,13 @@ bool isBlackPawnMoveLegal(Position from, Position to, const GameState* game)
 	return false;
 }
 
+bool isPawnMoveLegal(Position from, Position to, const GameState* game)
+{
+	PieceColor color = getPieceColor(getPiece(from, game).info);
+	if (color == WHITE) return isWhitePawnMoveLegal(from, to, game);
+	else return isBlackPawnMoveLegal(from, to, game);
+}
+
 bool isKnightMoveLegal(Position from, Position to)
 {
 	if (abs(from.rank - to.rank) == 2 && abs(from.file - to.file) == 1) return true;
@@ -588,68 +641,89 @@ bool isKnightMoveLegal(Position from, Position to)
 	return false;
 }
 
-bool isBishopMoveLegal(Position from, Position to, const char board[8][8])
+bool isBishopMoveLegal(Position from, Position to, const GameState* game)
 {
 	if (abs(from.rank - to.rank) != abs(from.file - to.file)) return false;
 	int rankdir = from.rank > to.rank ? -1 : 1;
 	int filedir = from.file > to.file ? -1 : 1;
 	int j = from.file + filedir;
 	for (int i = from.rank + rankdir; i != to.rank; i += rankdir) {
-		if (board[i][j] != EMPTY) return false;
+		if (game->board[i][j] != NONE) return false;
 		j += filedir;
 	}
 	return true;
 }
 
-bool isRookMoveLegal(Position from, Position to, const char board[8][8])
+bool isRookMoveLegal(Position from, Position to, const GameState* game)
 {
 	if (from.rank != to.rank && from.file == to.file) {
 		int rankdir = from.rank > to.rank ? -1 : 1;
 		for (int i = from.rank + rankdir; i != to.rank; i += rankdir) {
-			if (board[i][from.file] != EMPTY) return false;
+			if (game->board[i][from.file] != NONE) return false;
 		}
 	}
 	else if (from.rank == to.rank && from.file != to.file) {
 		int filedir = from.file > to.file ? -1 : 1;
 		for (int j = from.file + filedir; j != to.file; j += filedir) {
-			if (board[from.rank][j] != EMPTY) return false;
+			if (game->board[from.rank][j] != NONE) return false;
 		}
+	}
+	else {
+		return false;
 	}
 	return true;
 }
 
-bool isQueenMoveLegal(Position from, Position to, const char board[8][8])
+bool isQueenMoveLegal(Position from, Position to, const GameState* game)
 {
-	return isBishopMoveLegal(from, to, board) || isRookMoveLegal(from, to, board);
+	return isBishopMoveLegal(from, to, game) || isRookMoveLegal(from, to, game);
 }
 
-bool isKingMoveLegal(Position from, Position to, const char board[8][8])
+bool isKingMoveLegal(PieceColor color, Position from, Position to,
+	const GameState* game)
 {
+	PieceColor enemyColor = getEnemyColor(color);
+	if (isPosUnderAttack(to, enemyColor, game)) return false;
+	if (from.rank == color * 7 && from.rank == to.rank && from.file == 4) {
+		uint8_t side;
+		Position between = {.rank = from.rank};
+		if (to.file == 2) {
+			between.file = 3;
+			return !isPosUnderAttack(between, enemyColor, game)
+				&& game->moveCnt <= game->whenLostCR[color][0];
+		}
+		else if (to.file == 6) {
+			between.file = 5;
+			return !isPosUnderAttack(between, enemyColor, game)
+				&& game->moveCnt <= game->whenLostCR[color][1];
+		}
+		else {
+			return (to.file == 3 || from.file == 5);
+		}
+
+	}
 	return abs(from.rank - to.rank) <= 1 && abs(from.file - to.file) <= 1;
 }
 
 bool isMoveGenerallyValid(Position from, Position to, const GameState* game)
 {
-	if (isPositionValid(from) == false || isPositionValid(to) == false)
+	if (isPosValid(from) == false || isPosValid(to) == false)
 		return false;
 
-	if (from.rank == to.rank && from.file == to.file) return false;
+	if (isPosEqual(from, to)) return false;
 
-	char* square1 = getSquare(from, game->board);
-	char* square2 = getSquare(to, game->board);
-
-	if (*square1 == EMPTY) {
+	if (isPosEmpty(from, game)) {
 		return false;
 	}
 
-	PieceColor pieceColor = getPieceColor(*square1);
+	PieceColor pieceColor = getPieceColor(getPiece(from, game).info);
 	if (pieceColor != game->colorToMove) {
 		printf("Not your piece!\n");
 		return false;
 	}
 
-	if (*square2 != EMPTY) {
-		if (pieceColor == getPieceColor(*square2)) {
+	if (isPosEmpty(to, game) == false) {
+		if (pieceColor == getPieceColor(getPiece(to, game).info)) {
 			printf("Your other piece is blocking!\n");
 			return false;
 		}
@@ -661,81 +735,86 @@ bool isMoveGenerallyValid(Position from, Position to, const GameState* game)
 bool isMoveLegal(Position from, Position to, const GameState* game)
 {
 	if (isMoveGenerallyValid(from, to, game) == false) return false;
-	Piece piece = getPiece(game->board[from.rank][from.file]);
+	PieceInfo piece = getPiece(from, game).info;
 
-	switch (piece.type)
+	switch (getPieceType(piece))
 	{
-	case TYPE_NONE:
-		return false;
 	case PAWN:
-		if (piece.color == WHITE)
+		if (getPieceColor(piece) == WHITE)
 			return isWhitePawnMoveLegal(from, to, game);
 		else
 			return isBlackPawnMoveLegal(from, to, game);
 	case KNIGHT:
 		return isKnightMoveLegal(from, to);
 	case BISHOP:
-		return isBishopMoveLegal(from, to, game->board);
+		return isBishopMoveLegal(from, to, game);
 	case ROOK:
-		return isRookMoveLegal(from, to, game->board);
+		return isRookMoveLegal(from, to, game);
 	case QUEEN:
-		return isQueenMoveLegal(from, to, game->board);
+		return isQueenMoveLegal(from, to, game);
 	case KING:
-		return isKingMoveLegal(from, to, game->board);
+		return isKingMoveLegal(getPieceColor(piece), from, to, game);
 	default:
 		return false;
 	}
 }
 
-MoveInfo checkAndMove(Position from, Position to, GameState* game)
+Move checkAndMove(Position from, Position to, PieceType prom,
+	GameState* game)
 {
-	MoveInfo move;
+	Move move;
 	if (isMoveLegal(from, to, game) == false) {
-		move.isLegal = false;
+		move.type = ILLEGAL;
+		printf("Illegal move!\n");
+		return move;
+	}
+	if (isPromotionValid(from, to, prom, game) == false) {
+		printf("Invalid promotion!\n");
+		move.type = ILLEGAL;
 		return move;
 	}
 
-	PieceColor colorThatMoved = game->colorToMove;
+//	PieceColor colorThatMoved = game->colorToMove;
 
-	move = makeMove(from, to, game);
+	move = makeMove(from, to, prom, game);
 
-	PieceInfo king = getKingInfo(colorThatMoved, game->board);
-	if (isUnderCheck(king, game->board)) {
-		undoMove(&move, game);
-		move.isLegal = false;
-	}
+//	if (isUnderCheck(colorThatMoved, game)) {
+//		undoMove(game);
+//		move.type = ILLEGAL;
+//	}
 
 	return move;
 }
 
-int getLegalMoves(Position from, GameState* game, Position legalTo[MAX_LEGAL_MOVES])
+int getLegalMoves(Position from, const GameState* game, Position legalTo[MAX_LEGAL_MOVES])
 {
 	
 }
 
-bool isUnderCheck(PieceInfo king, const char board[8][8])
+bool isPosUnderAttack(Position target, PieceColor color, const GameState* game)
 {
-	PieceColor enemyColor = getEnemyColor(king.piece.color);
-	Piece piece;
+	PieceInfo piece;
 	Position pos;
 
 	// check for pawns
-	if (king.piece.color == WHITE) pos.rank = king.pos.rank + 1;
-	else pos.rank = king.pos.rank - 1;
+	if (color == WHITE) pos.rank = target.rank - 1;
+	else pos.rank = target.rank + 1;
 	for (int i = -1; i <= 1; i += 2) {
-		pos.file = king.pos.file + i;
-		piece = checkAndGetPiece(pos, board);
-		if (piece.color == enemyColor && piece.type == PAWN) {
+		pos.file = target.file + i;
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = getPiece(pos, game).info;
+		if (piece == PIECE(color, PAWN)) {
 			return true;
 		}
 	}
 
 	// check for knights
 	for (int i = 0; i < 8; i++) {
-		pos.rank = king.pos.rank + knightMoves[i][0];
-		pos.file = king.pos.file + knightMoves[i][1];
-		piece = checkAndGetPiece(pos, board);
-		if (piece.color == enemyColor && piece.type == KNIGHT) {
+		pos.rank = target.rank + knightMoves[i][0];
+		pos.file = target.file + knightMoves[i][1];
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = getPiece(pos, game).info;
+		if (piece == PIECE(color, KNIGHT)) {
 			return true;
 		}
 	}
@@ -744,15 +823,15 @@ bool isUnderCheck(PieceInfo king, const char board[8][8])
 	for (int i = -1; i <= 1; i += 2) {
 		for (int j = -1; j <= 1; j += 2) {
 			for (int step = 1; step < 8; step++) {
-				pos.rank = king.pos.rank + i * step;
-				pos.file = king.pos.file + j * step;
-				if (isPositionValid(pos) == false) break;
-				piece = getPieceByPos(pos, board);
-				if (piece.color == enemyColor) {
-					if (piece.type == BISHOP || piece.type == QUEEN) {
-						return true;
-					}
-					else break;
+				pos.rank = target.rank + i * step;
+				pos.file = target.file + j * step;
+				if (isPosValid(pos) == false) break;
+				if (isPosEmpty(pos, game)) continue;
+				piece = getPiece(pos, game).info;
+				if (piece == PIECE(color, BISHOP)
+					|| piece == PIECE(color, QUEEN))
+				{
+					return true;
 				}
 				else {
 					break;
@@ -762,52 +841,70 @@ bool isUnderCheck(PieceInfo king, const char board[8][8])
 	}
 
 	// check rank and file for rooks and queens
-	pos.rank = king.pos.rank;
+	pos.rank = target.rank;
 	for (int i = -1; i <= 1; i += 2) {
 		for (int step = 1; step < 8; step++) {
-			pos.file = king.pos.file + i * step;
-			if (isPositionValid(pos) == false) break;
-			piece = getPieceByPos(pos, board);
-			if (piece.color == enemyColor) {
-				if (piece.type == ROOK || piece.type == QUEEN) {
-					return true;
-				}
-				else break;
+			pos.file = target.file + i * step;
+			if (isPosValid(pos) == false) break;
+			if (isPosEmpty(pos, game)) continue;
+			piece = getPiece(pos, game).info;
+			if (piece == PIECE(color, BISHOP)
+				|| piece == PIECE(color, QUEEN))
+			{
+				return true;
 			}
 			else {
 				break;
 			}
 		}
 	}
-	pos.file = king.pos.file;
+	pos.file = target.file;
 	for (int i = -1; i <= 1; i += 2) {
 		for (int step = 1; step < 8; step++) {
-			pos.rank = king.pos.rank + i * step;
-			if (isPositionValid(pos) == false) break;
-			piece = getPieceByPos(pos, board);
-			if (piece.color == enemyColor) {
-				if (piece.type == ROOK || piece.type == QUEEN) {
-					return true;
-				}
-				else break;
+			pos.rank = target.rank + i * step;
+			if (isPosValid(pos) == false) break;
+			if (isPosEmpty(pos, game)) continue;
+			piece = getPiece(pos, game).info;
+			if (piece == PIECE(color, BISHOP)
+				|| piece == PIECE(color, QUEEN))
+			{
+				return true;
 			}
 			else {
 				break;
 			}
+		}
+	}
+
+	// check for king
+	for (int i = 0; i < 8; i++) {
+		pos.rank = target.rank + kingMoves[i][0];
+		pos.file = target.file + kingMoves[i][1];
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = getPiece(pos, game).info;
+		if (piece == PIECE(color, KING)) {
+			return true;
 		}
 	}
 
 	return false;
 }
 
+bool isUnderCheck(PieceColor color, const GameState* game)
+{
+	Piece king = game->pieces[color][0];
+	Position kingPos = getPos(king.pos);
+	PieceColor enemyColor = getEnemyColor(color);
+	return isPosUnderAttack(kingPos, enemyColor, game);
+}
+/*
 bool isPieceAttacking(Position from, Position to, const char board[8][8]) {
-	Piece piece = getPiece(*getSquare(from, board));
-	switch(piece.type)
+	if (isPosEmpty(from, game)) return false;
+	PieceInfo piece = getPiece(from, game).info;
+	switch(getPieceType(piece))
 	{
-	case TYPE_NONE:
-		return false;
 	case PAWN:
-		if (piece.color == WHITE) {
+		if (getPieceColor(piece) == WHITE) {
 			return from.rank + 1 == to.rank && abs(from.file - to.file) == 1;
 		}
 		else {
@@ -817,18 +914,19 @@ bool isPieceAttacking(Position from, Position to, const char board[8][8]) {
 	case KNIGHT:
 		return isKnightMoveLegal(from, to);
 	case BISHOP:
-		return isBishopMoveLegal(from, to, board);
+		return isBishopMoveLegal(from, to, game);
 	case ROOK:
-		return isRookMoveLegal(from, to, board);
+		return isRookMoveLegal(from, to, game);
 	case QUEEN:
-		return isQueenMoveLegal(from, to, board);
+		return isQueenMoveLegal(from, to, game);
 	case KING:
-		return isKingMoveLegal(from, to, board);
+		return isKingMoveLegal(from, to, game);
 	default:
 		return false;
 	}
 }
 
+/*
 int getPawnAttackMoves(Position from, PieceColor color,
 		const char board[8][8], Position moves[])
 {

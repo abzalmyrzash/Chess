@@ -44,7 +44,8 @@ typedef struct {
 typedef int8_t PieceRef;
 
 typedef enum : int8_t {
-	REGMOVE,
+	ILLEGAL = NONE,
+	REGMOVE = 0,
 	PROMOTION_KNIGHT = KNIGHT,
 	PROMOTION_BISHOP = BISHOP,
 	PROMOTION_ROOK = ROOK,
@@ -91,11 +92,11 @@ static const uint8_t kingMoves[8][2] = {
 
 void initGame(GameState* game);
 
-void printBoard(GameState* game);
+void printBoard(const GameState* game);
 
-void printBoardFlipped(GameState* game);
+void printBoardFlipped(const GameState* game);
 
-void printControlBoard(GameState* game);
+void printControlBoard(const GameState* game);
 
 CompactPosition compPos(Position pos);
 
@@ -112,11 +113,17 @@ void posToNotation(Position pos, char* notation);
 void createPiece(PieceColor color, PieceType type,
 	uint8_t rank, uint8_t file, GameState* game);
 
-bool isEmpty(Position pos, GameState* game);
+bool isPosEmpty(Position pos, const GameState* game);
 
-Piece getPiece(Position pos, GameState* game);
+bool isPosEmptyOrInvalid(Position pos, const GameState* game);
+
+Piece getPiece(Position pos, const GameState* game);
 
 static Piece* getPiecePtr(Position pos, GameState* game);
+
+Piece getPieceByRef(PieceRef ref, const GameState* game);
+
+static Piece* getPiecePtrByRef(PieceRef ref, GameState* game);
 
 PieceColor getPieceColor(PieceInfo p);
 
@@ -155,7 +162,24 @@ void takeCastlingRights(PieceColor c, uint8_t side, GameState* game);
 
 void updateCastlingRights(Position pos, GameState* game);
 
-bool isMoveLegal(Position from, Position to, PieceType promotion, const GameState* game);
+bool isMovePromotion(Position from, Position to, const GameState* game);
+
+bool isPromotionValid(Position from, Position to, PieceType prom,
+	const GameState* game);
+
+bool isMoveLegal(Position from, Position to, const GameState* game);
+
+bool isMoveGenerallyValid(Position from, Position to, const GameState* game);
+
+bool isWhitePawnMoveLegal(Position from, Position to, const GameState* game);
+bool isBlackPawnMoveLegal(Position from, Position to, const GameState* game);
+bool isPawnMoveLegal(Position from, Position to, const GameState* game);
+bool isKnightMoveLegal(Position from, Position to);
+bool isBishopMoveLegal(Position from, Position to, const GameState* game);
+bool isRookMoveLegal(Position from, Position to, const GameState* game);
+bool isQueenMoveLegal(Position from, Position to, const GameState* game);
+bool isKingMoveLegal(PieceColor color, Position from, Position to,
+	const GameState* game);
 
 void undoMove(GameState* game);
 
@@ -163,24 +187,22 @@ void redoMove(GameState* game);
 
 Move moveByNotation(char *notation, GameState* game);
 
+Move checkAndMove(Position from, Position to, PieceType prom,
+	GameState* game);
+
+int getLegalMoves(Position from, const GameState* game, Position legalTo[MAX_LEGAL_MOVES]);
+
+bool isUnderCheck(PieceColor color, const GameState* game);
+
+bool isPosUnderAttack(Position target, PieceColor color, const GameState* game);
+
+bool isMated(PieceColor color, const GameState* game);
+
+bool hasLegalMoves(PieceColor color, const GameState* game);
+
+bool isPieceAttacking(Position from, Position to, const GameState* game);
+
 /*
-MoveInfo checkAndMove(Position from, Position to, GameState* game);
-
-int getLegalMoves(Position from, GameState* game, Position legalTo[MAX_LEGAL_MOVES]);
-
-
-bool isMoveDoubleStep(Position from, Position to, const GameState* game);
-
-bool isMoveEnPassant(Position from, Position to, const GameState* game);
-
-bool isUnderCheck(PieceInfo king, GameState* game);
-
-bool isMated(PieceColor color, GameState* game);
-
-bool hasLegalMoves(PieceColor color, GameState* game);
-
-bool isPieceAttacking(Position from, Position to, GameState* game);
-
 void calculateControlBoard(GameState* game);
 
 // get pieces that control pos from a far (bishops, rooks, queens)

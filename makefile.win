@@ -1,2 +1,2 @@
 a.exe: *.c
-	gcc *.c -lSDL3 -LC:\libs\SDL3-3.2.20\x86_64-w64-mingw32\lib -IC:\libs\SDL3-3.2.20\x86_64-w64-mingw32\include
+	gcc *.c -lSDL3 -lSDL3_image -LC:\libs\SDL3-3.2.20\x86_64-w64-mingw32\lib -IC:\libs\SDL3-3.2.20\x86_64-w64-mingw32\include -LC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\lib -IC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\include
