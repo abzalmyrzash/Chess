@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 
-void onClick(float x, float y, GameState* game)
+void onClick(float x, float y, Game* game)
 {
 	if (isPromoting) {
 		int8_t row, column;
@@ -18,10 +18,11 @@ void onClick(float x, float y, GameState* game)
 		printf("%d\n", promotion);
 		return;
 	}
-	selFrom.rank = 7 - floor((y - boardY) / squareH);
-	selFrom.file = floor((x - boardX) / squareW);
+	uint8_t rank = 7 - floor((y - boardY) / squareH);
+	uint8_t file = floor((x - boardX) / squareW);
+	selFrom = getPos(rank, file);
 	if (isPosValid(selFrom) == false) goto reset;
-	selPiece = game->board[selFrom.rank][selFrom.file];
+	selPiece = game->refBoard[selFrom];
 	if (selPiece == NONE) goto reset;
 	PieceColor color = getPieceColor(getPieceByRef(selPiece, game).info);
 	if (game->colorToMove != color) goto reset;
@@ -30,19 +31,18 @@ void onClick(float x, float y, GameState* game)
 	return;
 
 	reset:
-	selFrom.rank = NONE;
-	selFrom.file = NONE;
+	selFrom = NONE;
 	selPiece = NONE;
 }
 
-void onMove(float x, float y, GameState* game)
+void onMove(float x, float y, Game* game)
 {
 	if (selPiece == NONE) return;
 	mouseX = x;
 	mouseY = y;
 }
 
-void onRelease(float x, float y, GameState* game)
+void onRelease(float x, float y, Game* game)
 {
 	if (selPiece == NONE) return;
 	if (isPromoting) {
@@ -58,31 +58,34 @@ void onRelease(float x, float y, GameState* game)
 			goto reset;
 		}
 		isPromoting = false;
-		checkAndMove(selFrom, selTo, promotion, game);
-		goto reset;
+		goto makeMove;
 	}
 
-	selTo.rank = 7 - floor((y - boardY) / squareH);
-	selTo.file = floor((x - boardX) / squareW);
+	uint8_t rank = 7 - floor((y - boardY) / squareH);
+	uint8_t file = floor((x - boardX) / squareW);
+	selTo = getPos(rank, file);
 	if (isMovePromotion(selFrom, selTo, game)
 		&& isMoveLegal(selFrom, selTo, game))
 	{
 		isPromoting = true;
-		promPopup.x = boardX + (selTo.file - 0.5) * squareW;
+		promPopup.x = boardX + (file - 0.5) * squareW;
 		return;
 	}
-	checkAndMove(selFrom, selTo, NONE, game);
+	makeMove:
+	Move move = checkAndMove(selFrom, selTo, promotion, game);
+	if (move.type != NONE) {
+		prevFrom = selFrom;
+		prevTo = selTo;
+	}
 	reset:
-	selFrom.rank = NONE;
-	selFrom.file = NONE;
-	selTo.rank = NONE;
-	selTo.file = NONE;
+	selFrom = NONE;
+	selTo = NONE;
 	selPiece = NONE;
 }
 
 static bool ctrl = false;
 static bool shift = false;
-void onKeyDown(SDL_KeyboardEvent event, GameState* game)
+void onKeyDown(SDL_KeyboardEvent event, Game* game)
 {
 	switch(event.key)
 	{
@@ -107,7 +110,7 @@ void onKeyDown(SDL_KeyboardEvent event, GameState* game)
 	}
 }
 
-void onKeyUp(SDL_KeyboardEvent event, GameState* game)
+void onKeyUp(SDL_KeyboardEvent event, Game* game)
 {
 	switch(event.key)
 	{

@@ -42,7 +42,6 @@ void initGame(Game* game)
 			game->whenLostCR[i][j] = NEVER;
 		}
 	}
-	calculateAllAttacks(game);
 	/*
 	for (int i = 0; i < 2; i++) {
 		printBitboard(game->piecesBB[i]);
@@ -489,7 +488,6 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 	game->colorToMove = getEnemyColor(game->colorToMove);
 	game->history[game->moveCnt++] = move;
 	game->totalMoves = game->moveCnt;
-	calculateAllAttacks(game);
 
 	return move;
 }
@@ -534,7 +532,6 @@ void undoMove(Game* game)
 	} else {
 		game->enPassantFile = NONE;
 	}
-	calculateAllAttacks(game);
 }
 
 void redoMove(Game* game)
@@ -570,7 +567,6 @@ void redoMove(Game* game)
 	}
 	game->colorToMove = getEnemyColor(game->colorToMove);
 	game->moveCnt++;
-	calculateAllAttacks(game);
 }
 
 MoveType getMoveType(Position from, Position to, Game* game)
@@ -749,21 +745,21 @@ bool isKingMoveLegal(PieceColor color, Position from, Position to,
 	uint8_t to_rank = getRank(to);
 	uint8_t to_file = getFile(to);
 
-	PieceColor enemy = getEnemyColor(color);
-	if (getAttackers(to, enemy, game)) return false;
+	PieceColor enemyColor = getEnemyColor(color);
+	if (isPosUnderAttack(to, enemyColor, game)) return false;
 	if (from_rank == color * 7 && from_rank == to_rank && from_file == 4) {
-		if (getAttackers(from, enemy, game)) return false;
+		if (isPosUnderAttack(from, enemyColor, game)) return false;
 		uint8_t between_file;
 		if (to_file == 2) {
 			between_file = 3;
 			return isPosEmpty(getPos(from_rank, between_file), game) &&
-				!getAttackers(getPos(from_rank, between_file), enemy, game)
+				!isPosUnderAttack(getPos(from_rank, between_file), enemyColor, game)
 				&& game->moveCnt <= game->whenLostCR[color][QUEENSIDE];
 		}
 		else if (to_file == 6) {
 			between_file = 5;
 			return isPosEmpty(getPos(from_rank, between_file), game) &&
-				!getAttackers(getPos(from_rank, between_file), enemy, game)
+				!isPosUnderAttack(getPos(from_rank, between_file), enemyColor, game)
 				&& game->moveCnt <= game->whenLostCR[color][KINGSIDE];
 		}
 		else {
@@ -892,18 +888,19 @@ const uint8_t mailbox64[64] = {
     91, 92, 93, 94, 95, 96, 97, 98
 };
 
-Bitboard getAttacks(Position from, const Game* game)
+Bitboard getMoves(Position from, const Game* game)
 {
-	assert(isPosValid(from));
-	assert(!isPosEmpty(from, game));
+	if (isPosEmptyOrInvalid(from, game)) return C64(0);
 
 	PieceInfo p = game->board[from];
 	PieceColor color = getPieceColor(p);
+	if (color != game->colorToMove) return C64(0);
+	PieceColor enemyColor = getEnemyColor(color);
 	PieceType type = getPieceType(p);
-	uint8_t rank = getRank(from);
-	uint8_t file = getFile(from);
 
 	Bitboard bb = C64(0);
+	uint8_t rank = getRank(from);
+	uint8_t file = getFile(from);
 
 	int8_t i, n;
 
@@ -912,114 +909,59 @@ Bitboard getAttacks(Position from, const Game* game)
 			for (n = from;;) {
 				n = mailbox[mailbox64[n] + offset[type][i]];
 				if (n == -1) break; /* outside board */
-				if (game->board[n] != NONE) {
-					setBit(bb, n);
+				p = game->board[n];
+				if (p != NONE) {
+					if (getPieceColor(p) == enemyColor) {
+						setBit(bb, n);
+					}
 					break;
 				}
 				setBit(bb, n);
 				if (!slide[type]) break; /* next direction */
 			}
 		}
+
+		if (type == KING) {
+			if (from_rank == color * 7 && from_file == 4) {
+				if (isPosUnderAttack(from, enemyColor, game)) return false;
+				uint8_t between_file;
+				if (to_file == 2) {
+					between_file = 3;
+					return !isPosUnderAttack(getPos(from_rank, between_file), enemyColor, game)
+						&& game->moveCnt <= game->whenLostCR[color][0];
+				}
+				else if (to_file == 6) {
+					between_file = 5;
+					return !isPosUnderAttack(getPos(from_rank, between_file), enemyColor, game)
+						&& game->moveCnt <= game->whenLostCR[color][1];
+				}
+				else {
+					return (to_file == 3 || from_file == 5);
+				}
+			}
+		}
+
 	}
 
 	else {  // if pawn
-		if (color == WHITE && rank < 7) {
-			if (file > 0) setBit(bb, from + 7);
-			if (file < 7) setBit(bb, from + 9);
-		}
-
-		else if (color == BLACK && rank > 0) {
-			if (file > 0) setBit(bb, from - 9);
-			if (file < 7) setBit(bb, from - 7);
-		}
-	}
-
-	return bb;
-}
-
-void calculateAllAttacks(Game* game)
-{
-	PieceColor enemy = BLACK;
-
-	for (PieceColor color = WHITE; color <= BLACK; color++) {
-		Position enemyKingPos = game->pieces[enemy][0].pos;
-		game->checkersBB[enemy] = C64(0);
-
-		for (int i = 0; i < 16; i++) {
-			Piece p = game->pieces[color][i];
-
-			// if piece has been captured, skip
-			if (p.pos == NONE) continue;
-
-			// get squares attacked by piece
-			game->attacksBB[color][i] = getAttacks(p.pos, game);
-
-			// if attacking enemy king, add to checkers bitboard
-			if (testBit(game->attacksBB[color][i], enemyKingPos)) {
-				setBit(game->checkersBB[enemy], p.pos);
-			}
-		}
-
-		enemy = WHITE;
-	}
-}
-
-Bitboard getAttackers(Position target, PieceColor color, const Game* game)
-{
-	Bitboard bb = C64(0);
-	for (int i = 0; i < 16; i++) {
-		if (testBit(game->attacksBB[color][i], target)) {
-			setBit(bb, game->pieces[color][i].pos);
-		}
-	}
-	return bb;
-}
-
-Bitboard getMoves(Position from, const Game* game)
-{
-	assert(isPosValid(from));
-	assert(!isPosEmpty(from, game));
-
-	PieceInfo p = game->board[from];
-	PieceColor color = getPieceColor(p);
-	assert(color == game->colorToMove);
-	PieceColor enemy = getEnemyColor(color);
-	PieceType type = getPieceType(p);
-	uint8_t rank = getRank(from);
-	uint8_t file = getFile(from);
-
-	PieceRef ref = game->refBoard[from];
-
-	Bitboard bb = game->attacksBB[color][ref & 0b1111];
-	bb &= ~game->piecesBB[color];
-
-	if (type == KING) {
-		if (rank == color * 7 && file == 4) {
-			if (game->moveCnt <= game->whenLostCR[color][QUEENSIDE] &&
-				game->board[from - 1] == NONE &&
-				getAttackers(from - 2, enemy, game) == 0)
-			{
-				setBit(bb, from - 2);
-			}
-			if (game->moveCnt <= game->whenLostCR[color][KINGSIDE] &&
-				game->board[from + 1] == NONE &&
-				getAttackers(from - 2, enemy, game) == 0)
-			{
-				setBit(bb, from + 2);
-			}
-		}
-	}
-
-	else if (type == PAWN) {
-		bb &= game->piecesBB[enemy];
 		if (color == WHITE) {
-			if (rank < 7 && game->board[from + 8] == NONE) {
+			if (game->board[from + 8] == NONE) {
 				setBit(bb, from + 8);
 			}
 			if (rank == 1) {
 				if (game->board[from + 16] == NONE) {
 					setBit(bb, from + 16);
 				}
+			}
+
+			p = game->board[from + 9];
+			if (p != NONE && getPieceColor(p) == enemyColor) {
+				setBit(bb, from + 9);
+			}
+
+			p = game->board[from + 7];
+			if (p != NONE && getPieceColor(p) == enemyColor) {
+				setBit(bb, from + 7);
 			}
 
 			if (game->enPassantFile != NONE && rank == 4) {
@@ -1031,13 +973,24 @@ Bitboard getMoves(Position from, const Game* game)
 		}
 
 		else { // if black pawn
-			if (rank > 0 && game->board[from - 8] == NONE) {
+			
+			if (game->board[from - 8] == NONE) {
 				setBit(bb, from - 8);
 			}
 			if (rank == 6) {
 				if (game->board[from - 16] == NONE) {
 					setBit(bb, from - 16);
 				}
+			}
+
+			p = game->board[from - 9];
+			if (p != NONE && getPieceColor(p) == enemyColor) {
+				setBit(bb, from - 9);
+			}
+
+			p = game->board[from - 7];
+			if (p != NONE && getPieceColor(p) == enemyColor) {
+				setBit(bb, from - 7);
 			}
 
 			if (game->enPassantFile != NONE && rank == 3) {
@@ -1048,32 +1001,96 @@ Bitboard getMoves(Position from, const Game* game)
 			}
 		}
 	}
+
 	return bb;
 }
 
 Bitboard getLegalMoves(Position from, const Game* game)
 {
-	if (isPosEmptyOrInvalid(from, game)) return C64(0);
+	return getMoves(from, game);
+}
 
-	PieceInfo p = game->board[from];
-	PieceColor color = getPieceColor(p);
-	if (color != game->colorToMove) return C64(0);
-	PieceColor enemy = getEnemyColor(color);
-	PieceType type = getPieceType(p);
-	uint8_t rank = getRank(from);
-	uint8_t file = getFile(from);
+bool isPosUnderAttack(Position target, PieceColor color, const Game* game)
+{
+	PieceInfo piece;
+	Position pos;
 
-	Bitboard bb = getMoves(from, game);
-	Bitboard checkersBB = (game->checkersBB[color]);
-	if (checkersBB) do {
-		Position pos = bitScanForward(checkersBB);
-	} while(checkersBB &= checkersBB - 1);
-	return bb;
+	// check for pawns
+	if (color == WHITE) pos = target - 9;
+	else pos = target + 7;
+	for (int i = 0; i < 2; i++) {
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = game->board[pos];
+		if (piece == PIECE(color, PAWN)) {
+			return true;
+		}
+		pos += 2;
+	}
+
+	// check for knights
+	for (int i = 0; i < 8; i++) {
+		pos = target + knightMoves[i];
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = game->board[pos];
+		if (piece == PIECE(color, KNIGHT)) {
+			return true;
+		}
+	}
+
+	// check diagonals for bishops and queens
+	for (int i = 0; i < 4; i++) {
+		for (int step = 1; step < 8; step++) {
+			pos = target + diagonals[i] * step;
+			if (isPosValid(pos) == false) break;
+			if (isPosEmpty(pos, game)) continue;
+			piece = game->board[pos];
+			if (piece == PIECE(color, BISHOP)
+				|| piece == PIECE(color, QUEEN))
+			{
+				return true;
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	// check rank and file for rooks and queens
+	for (int i = 0; i < 4; i++) {
+		for (int step = 1; step < 8; step++) {
+			pos = target + orthogonals[i] * step;
+			if (isPosValid(pos) == false) break;
+			if (isPosEmpty(pos, game)) continue;
+			piece = game->board[pos];
+			if (piece == PIECE(color, BISHOP)
+				|| piece == PIECE(color, QUEEN))
+			{
+				return true;
+			}
+			else {
+				break;
+			}
+		}
+	}
+
+	// check for king
+	for (int i = 0; i < 8; i++) {
+		pos = target + kingMoves[i];
+		if (isPosEmptyOrInvalid(pos, game)) continue;
+		piece = game->board[pos];
+		if (piece == PIECE(color, KING)) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool isUnderCheck(PieceColor color, const Game* game)
 {
-	return game->checkersBB[color] != 0;
+	Piece king = game->pieces[color][0];
+	PieceColor enemyColor = getEnemyColor(color);
+	return isPosUnderAttack(king.pos, enemyColor, game);
 }
 
 /*
@@ -1266,7 +1283,7 @@ int getPiecesByColor(PieceColor color, const char board[8][8], PieceInfo pieces[
 
 int updatePieces(Move* move, PieceInfo pieces[2][16]) {
 	PieceColor color = getPieceColor(move->piece);
-	PieceColor enemy = getEnemyColor(color);
+	PieceColor enemyColor = getEnemyColor(color);
 	for (int i = 0; i < nPieces[color]; i++) {
 		Piece* p = &pieces[color][i];
 		if (isPositionEqual(p->pos, move->from)) {
@@ -1279,8 +1296,8 @@ int updatePieces(Move* move, PieceInfo pieces[2][16]) {
 		capPos.file = move->from.file;
 	} else capPos = move->to;
 
-	for (int i = 0; i < nPieces[enemy]; i++) {
-		Piece* p = &pieces[enemy][i];
+	for (int i = 0; i < nPieces[enemyColor]; i++) {
+		Piece* p = &pieces[enemyColor][i];
 		if (isPositionEqual(p->pos, capPos)) {
 			p->pos.rank = -1;
 			p->pos.file = -1;

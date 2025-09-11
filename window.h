@@ -9,6 +9,7 @@ extern float boardX, boardY, squareW, squareH;
 extern float mouseX, mouseY;
 extern Position selFrom, selTo;
 extern PieceRef selPiece;
+extern Position prevFrom, prevTo;
 
 extern bool isPromoting;
 extern PieceType promotion;
@@ -16,7 +17,7 @@ extern SDL_FRect promPopup;
 extern const PieceType promOptions[2][2];
 
 void loadTextures(SDL_Renderer* renderer);
-void initWindow();
+void initWindow(SDL_Renderer* renderer);
 void calcWindowVars();
-void render(SDL_Renderer* renderer, GameState* game);
+void render(SDL_Renderer* renderer, Game* game);
 void renderPiece(SDL_Renderer* renderer, PieceInfo piece, SDL_FRect* rect);

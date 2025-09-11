@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
 		file = stdin;
 	}
 
-	GameState game;
+	Game game;
 	initGame(&game);
 
 	SDL_Init(SDL_INIT_VIDEO);
@@ -28,39 +28,38 @@ int main(int argc, char** argv) {
 	window = SDL_CreateWindow("Chess", SCREEN_HEIGHT, SCREEN_WIDTH, 0);
 	renderer = SDL_CreateRenderer(window, NULL);
 	SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE);
+	initWindow(renderer);
 	loadTextures(renderer);
-	initWindow();
 
 	render(renderer, &game);
 	printBoard(&game);
 	char notation[10];
 	SDL_Event e;
 	bool quit = false;
-	
 
 	while (!quit) {
 		while(SDL_PollEvent(&e)) {
-		switch(e.type)
-		{
-		case SDL_EVENT_MOUSE_BUTTON_DOWN:
-			onClick(e.button.x, e.button.y, &game);
-			break;
-		case SDL_EVENT_MOUSE_MOTION:
-			onMove(e.button.x, e.button.y, &game);
-			break;
-		case SDL_EVENT_MOUSE_BUTTON_UP:
-			onRelease(e.button.x, e.button.y, &game);
-			break;
-		case SDL_EVENT_KEY_DOWN:
-			onKeyDown(e.key, &game);
-			break;
-		case SDL_EVENT_KEY_UP:
-			onKeyUp(e.key, &game);
-			break;
-		case SDL_EVENT_QUIT:
-			quit = true;
-			return 0;
-		}
+			switch(e.type)
+			{
+			case SDL_EVENT_MOUSE_BUTTON_DOWN:
+				onClick(e.button.x, e.button.y, &game);
+				break;
+			case SDL_EVENT_MOUSE_MOTION:
+				onMove(e.button.x, e.button.y, &game);
+				break;
+			case SDL_EVENT_MOUSE_BUTTON_UP:
+				onRelease(e.button.x, e.button.y, &game);
+				break;
+			case SDL_EVENT_KEY_DOWN:
+				onKeyDown(e.key, &game);
+				break;
+			case SDL_EVENT_KEY_UP:
+				onKeyUp(e.key, &game);
+				break;
+			case SDL_EVENT_QUIT:
+				quit = true;
+				return 0;
+			}
 		}
 		render(renderer, &game);
 		SDL_Delay(10);
@@ -89,10 +88,12 @@ int main(int argc, char** argv) {
 			printBoard(&game);
 			continue;
 		}
+		/*
 		if (strcmp(notation, "ctrl\n") == 0) {
 			printControlBoard(&game);
 			continue;
 		}
+		*/
 		if (strcmp(notation, "exit\n") == 0) {
 			break;
 		}
