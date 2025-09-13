@@ -31,7 +31,7 @@ typedef enum : uint8_t {
 	KINGSIDE
 } CastleSide;
 
-#define PIECE(COLOR, TYPE) (COLOR << 3 | TYPE)
+#define PIECE(COLOR, TYPE) ((COLOR) << 3 | (TYPE))
 
 typedef int8_t PieceInfo;
 
@@ -83,8 +83,13 @@ typedef struct {
 	PieceRef refBoard[64];
 	Bitboard piecesBB[2]; // bitboard of pieces by color
 	Bitboard pieceTypeBB[2][6]; // bitboard of pieces by color and type
-	Bitboard attacksBB[2][16]; // squares attacked by each piece
-	Bitboard checkersBB[2]; // where the king is being checked from
+	Bitboard attacksBB[2][16]; // squares attacked by each individual piece
+	Bitboard totalAttacksBB[2]; // squares attacked by color in total
+	uint8_t numCheckers[2];
+	Position checkerPos[2]; // where the king is being checked from
+	Bitboard checkXRayBB[2]; // squares X-Rayed through the king during check
+	Bitboard pinnedBB[2];
+	Bitboard legalMovesBB[2][16]; // legal moves for each piece
 	uint16_t moveCnt;
 	uint16_t totalMoves;
 	uint16_t lastPawnOrCapture;
@@ -99,32 +104,6 @@ typedef enum : int8_t {
 	SUBTRACT_CONTROL = -1,
 	ADD_CONTROL = 1
 } UpdateControlOption;
-
-static const uint8_t knightMoves[8] = {
-		15,		17,
-	6,				10,
-			//N
-	-10,			-6,
-		-17,	-15
-};
-
-static const uint8_t kingMoves[8] = {
-	7,	8,	9,
-	-1,		1,
-	-9,	-8,	-7
-};
-
-static const uint8_t diagonals[4] = {
-	7,		9,
-		//B
-	-9,		-7
-};
-
-static const uint8_t orthogonals[4] = {
-		8,
-	-1,		1,
-		-8
-};
 
 void initGame(Game* game);
 
@@ -226,19 +205,26 @@ Move moveByNotation(char *notation, Game* game);
 Move checkAndMove(Position from, Position to, PieceType prom,
 	Game* game);
 
-Bitboard getAttacks(Position from, const Game* game);
+Bitboard getAttacks(Position from, PieceColor color, PieceType type,
+	const Game* game);
 
 void calculateAllAttacks(Game* game);
 
 Bitboard getAttackers(Position target, PieceColor color, const Game* game);
 
-Bitboard getMoves(Position from, const Game* game);
+Bitboard getCastleMoves(Position from, PieceColor color, const Game* game);
+
+Bitboard getPawnMoves(Position from, PieceColor color, const Game* game);
+
+Bitboard getEnPassantMoves(Position from, PieceColor color, const Game* game);
 
 Bitboard getLegalMoves(Position from, const Game* game);
 
-bool isUnderCheck(PieceColor color, const Game* game);
+void calculateAllLegalMoves(Game* game);
 
-bool isPosUnderAttack(Position target, PieceColor color, const Game* game);
+void calculateGame(Game* game);
+
+bool isUnderCheck(PieceColor color, const Game* game);
 
 bool isMated(PieceColor color, const Game* game);
 

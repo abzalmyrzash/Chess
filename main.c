@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
 
 	render(renderer, &game);
 	printBoard(&game);
-	char notation[10];
 	SDL_Event e;
 	bool quit = false;
 
@@ -66,6 +65,7 @@ int main(int argc, char** argv) {
 	}
 	return 0;
 
+	char notation[10];
 	while (true) {
 		printf("%d. ", game.moveCnt + 1);
 		if (game.colorToMove == WHITE)
@@ -78,13 +78,11 @@ int main(int argc, char** argv) {
 		printf(notation);
 		if (strcmp(notation, "undo\n") == 0) {
 			undoMove(&game);
-			render(renderer, &game);
 			printBoard(&game);
 			continue;
 		}
 		if (strcmp(notation, "redo\n") == 0) {
 			redoMove(&game);
-			render(renderer, &game);
 			printBoard(&game);
 			continue;
 		}
@@ -102,7 +100,6 @@ int main(int argc, char** argv) {
 			if (move.type == ENPASSANT) {
 				printf("En passant!\n");
 			}
-			render(renderer, &game);
 			printBoard(&game);
 		} else {
 			printf("Illegal move!\n");

@@ -26,6 +26,8 @@ void onClick(float x, float y, Game* game)
 	if (selPiece == NONE) goto reset;
 	PieceColor color = getPieceColor(getPieceByRef(selPiece, game).info);
 	if (game->colorToMove != color) goto reset;
+	Bitboard legalMoves = *((Bitboard*)game->legalMovesBB + selPiece);
+	if (legalMoves == 0) goto reset;
 	mouseX = x;
 	mouseY = y;
 	return;

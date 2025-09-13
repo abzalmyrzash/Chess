@@ -117,7 +117,7 @@ void render(SDL_Renderer* renderer, Game* game)
 	static PieceColor prevColor = WHITE;
 	if (prevColor != game->colorToMove) {
 		prevColor = game->colorToMove;
-		printBoard(game);
+		// printBoard(game);
 	}
 
 	SDL_RenderClear(renderer);
@@ -155,16 +155,17 @@ void render(SDL_Renderer* renderer, Game* game)
 
 	PieceColor color;
 	if (selPiece != NONE) {
-		Bitboard bb = getLegalMoves(selFrom, game);
+		piece = getPieceByRef(selPiece, game);
+		color = getPieceColor(piece.info);
+		type = getPieceType(piece.info);
+
+		Bitboard bb = game->legalMovesBB[color][selPiece & 0b1111];
 		if (bb) do {
 			Position pos = bitScanForward(bb);
 			rect = boardSquares[pos];
 			SDL_RenderTexture(renderer, legalCircleTexture, NULL, &rect);
 		} while(bb &= bb - 1);
 
-		piece = getPieceByRef(selPiece, game);
-		color = getPieceColor(piece.info);
-		type = getPieceType(piece.info);
 		tex = textures[color][type];
 		rect.x = mouseX - squareW / 2;
 		rect.y = mouseY - squareH / 2;

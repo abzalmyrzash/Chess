@@ -41,8 +41,9 @@ void initGame(Game* game)
 		for (int j = 0; j < 2; j++) {
 			game->whenLostCR[i][j] = NEVER;
 		}
+		game->numCheckers[i] = 0;
 	}
-	calculateAllAttacks(game);
+	calculateGame(game);
 	/*
 	for (int i = 0; i < 2; i++) {
 		printBitboard(game->piecesBB[i]);
@@ -233,7 +234,8 @@ void castle(Position from, Position to, Game* game)
 		rook.file = 7;
 		rookTo.file = 5;
 	}
-	movePiece(getPos(rook.rank, rook.file), getPos(rookTo.rank, rookTo.file), game);
+	movePiece(getPos(rook.rank, rook.file),
+		getPos(rookTo.rank, rookTo.file), game);
 	if (rook.rank == 0) {
 		takeCastlingRights(WHITE, QUEENSIDE, game);
 		takeCastlingRights(WHITE, KINGSIDE, game);
@@ -264,7 +266,8 @@ void undoCastle(Position from, Position to, Game* game)
 		rookTo.file = 5;
 		side = KINGSIDE;
 	}
-	movePiece(getPos(rook.rank, rook.file), getPos(rookTo.rank, rookTo.file), game);
+	movePiece(getPos(rookTo.rank, rookTo.file),
+		getPos(rook.rank, rook.file), game);
 }
 
 void takeCastlingRights(PieceColor c, CastleSide side, Game* game)
@@ -489,7 +492,7 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 	game->colorToMove = getEnemyColor(game->colorToMove);
 	game->history[game->moveCnt++] = move;
 	game->totalMoves = game->moveCnt;
-	calculateAllAttacks(game);
+	calculateGame(game);
 
 	return move;
 }
@@ -534,7 +537,7 @@ void undoMove(Game* game)
 	} else {
 		game->enPassantFile = NONE;
 	}
-	calculateAllAttacks(game);
+	calculateGame(game);
 }
 
 void redoMove(Game* game)
@@ -570,7 +573,7 @@ void redoMove(Game* game)
 	}
 	game->colorToMove = getEnemyColor(game->colorToMove);
 	game->moveCnt++;
-	calculateAllAttacks(game);
+	calculateGame(game);
 }
 
 MoveType getMoveType(Position from, Position to, Game* game)
@@ -787,13 +790,11 @@ bool isMoveGenerallyValid(Position from, Position to, const Game* game)
 
 	PieceColor pieceColor = getPieceColor(game->board[from]);
 	if (pieceColor != game->colorToMove) {
-		printf("Not your piece!\n");
 		return false;
 	}
 
 	if (isPosEmpty(to, game) == false) {
 		if (pieceColor == getPieceColor(game->board[to])) {
-			printf("Your other piece is blocking!\n");
 			return false;
 		}
 	}
@@ -803,6 +804,12 @@ bool isMoveGenerallyValid(Position from, Position to, const Game* game)
 
 bool isMoveLegal(Position from, Position to, const Game* game)
 {
+	if (isMoveGenerallyValid(from, to, game) == false) return false;
+	PieceRef pieceRef = game->refBoard[from];
+	Bitboard legalMoves = *((Bitboard*)game->legalMovesBB + pieceRef);
+	return testBit(legalMoves, to);
+
+/*
 	if (isMoveGenerallyValid(from, to, game) == false) return false;
 	PieceInfo piece = game->board[from];
 
@@ -826,6 +833,7 @@ bool isMoveLegal(Position from, Position to, const Game* game)
 	default:
 		return false;
 	}
+*/
 }
 
 Move checkAndMove(Position from, Position to, PieceType prom,
@@ -855,7 +863,7 @@ Move checkAndMove(Position from, Position to, PieceType prom,
 	return move;
 }
 
-const bool slide[6] = {false, false, true, true, true, false};
+const bool isSlider[6] = {false, false, true, true, true, false};
 const uint8_t offsets[6] = {0, 8, 4, 4, 8, 8}; /* knight or ray directions */
 const int8_t offset[6][8] = {
 	{   0,   0,  0,  0, 0,  0,  0,  0 },
@@ -892,14 +900,9 @@ const uint8_t mailbox64[64] = {
     91, 92, 93, 94, 95, 96, 97, 98
 };
 
-Bitboard getAttacks(Position from, const Game* game)
+Bitboard getAttacks(Position from, PieceColor color, PieceType type,
+	const Game* game)
 {
-	assert(isPosValid(from));
-	assert(!isPosEmpty(from, game));
-
-	PieceInfo p = game->board[from];
-	PieceColor color = getPieceColor(p);
-	PieceType type = getPieceType(p);
 	uint8_t rank = getRank(from);
 	uint8_t file = getFile(from);
 
@@ -912,12 +915,12 @@ Bitboard getAttacks(Position from, const Game* game)
 			for (n = from;;) {
 				n = mailbox[mailbox64[n] + offset[type][i]];
 				if (n == -1) break; /* outside board */
-				if (game->board[n] != NONE) {
+				if (game->board[n] != NONE) { /* not empty */
 					setBit(bb, n);
 					break;
 				}
 				setBit(bb, n);
-				if (!slide[type]) break; /* next direction */
+				if (!isSlider[type]) break; /* next direction */
 			}
 		}
 	}
@@ -937,13 +940,86 @@ Bitboard getAttacks(Position from, const Game* game)
 	return bb;
 }
 
+// get the direction that points from A to B
+Position getDirection(Position from, Position to)
+{
+	int8_t distance = mailbox64[to] - mailbox64[from];
+	int8_t sign = (distance > 0 ? 1 : -1);
+
+	if (abs(distance) < 8) {
+		return sign;
+	}
+	else if (distance % 9 == 0) {
+		return sign * 9;
+	}
+	else if (distance % 10 == 0) {
+		return sign * 10;
+	}
+	else if (distance % 11 == 0) {
+		return sign * 11;
+	}
+	else {
+		return 0;
+	}
+
+}
+
+// used when the king is in check and we have to determine the square
+// that is behind the king that is not technically being attacked but
+// will become attacked once the king moves there
+Position getBehindSquare(Position from, Position to)
+{
+	int8_t direction = getDirection(from, to);
+	if (direction == 0) return -1;
+	Position behind = mailbox[mailbox64[to] + direction];
+
+	return behind;
+}
+
+// used for determining squares where a piece can move to block a check
+// or where a pinned piece is
+Bitboard getMiddleSquares(Position from, Position to)
+{
+	Bitboard bb = C64(0);
+
+	int8_t direction = getDirection(from, to);
+	if (direction == 0) return bb;
+
+	for (int8_t i = from; i != to;) {
+		i = mailbox[mailbox64[i] + direction];
+		if (i == -1) break;
+		setBit(bb, i);
+	}
+
+	return bb;
+}
+
+// used for determining squares where a pinned piece can move
+Bitboard getExtendedLine(Position from, Position to)
+{
+	Bitboard bb = C64(0);
+
+	int8_t direction = getDirection(from, to);
+	if (direction == 0) return bb;
+
+	for (int8_t i = from; ;) {
+		i = mailbox[mailbox64[i] + direction];
+		if (i == -1) break;
+		setBit(bb, i);
+	}
+	return bb;
+}
+
 void calculateAllAttacks(Game* game)
 {
 	PieceColor enemy = BLACK;
 
 	for (PieceColor color = WHITE; color <= BLACK; color++) {
 		Position enemyKingPos = game->pieces[enemy][0].pos;
-		game->checkersBB[enemy] = C64(0);
+		game->numCheckers[enemy] = 0;
+		game->totalAttacksBB[color] = C64(0);
+		game->checkXRayBB[enemy] = C64(0);
+		game->pinnedBB[enemy] = C64(0);
 
 		for (int i = 0; i < 16; i++) {
 			Piece p = game->pieces[color][i];
@@ -951,12 +1027,47 @@ void calculateAllAttacks(Game* game)
 			// if piece has been captured, skip
 			if (p.pos == NONE) continue;
 
-			// get squares attacked by piece
-			game->attacksBB[color][i] = getAttacks(p.pos, game);
+			PieceType type = getPieceType(p.info);
 
-			// if attacking enemy king, add to checkers bitboard
-			if (testBit(game->attacksBB[color][i], enemyKingPos)) {
-				setBit(game->checkersBB[enemy], p.pos);
+			// get squares attacked by piece
+			Bitboard attacksBB = getAttacks(p.pos, color, type, game);
+			game->attacksBB[color][i] = attacksBB;
+			game->totalAttacksBB[color] |= attacksBB;
+
+			// get squares X-Rayed by sliding piece
+			Bitboard xRayBB = C64(0);
+
+			// if attacking enemy king
+			if (testBit(attacksBB, enemyKingPos)) {
+				game->checkerPos[enemy] = p.pos;
+				game->numCheckers[enemy]++;
+
+				// get X-rayed squares
+				if (isSlider[type]) {
+					Position behind = getBehindSquare(p.pos, enemyKingPos);
+					if (behind != -1) {
+						setBit(game->checkXRayBB[enemy], behind);
+					}
+				}
+			}
+
+			if (!isSlider) continue;
+
+			// calculate middle squares between enemy king and piece
+			Bitboard middleSquaresBB = getMiddleSquares(enemyKingPos, p.pos);
+
+			// a piece is pinned if it's attacked and it's in the middle
+			// and it's an enemy piece (and it's the only one in the middle)
+			Bitboard pinBB = middleSquaresBB & attacksBB & game->piecesBB[enemy];
+			if (popCount(pinBB) == 1) {
+				game->pinnedBB[enemy] |= pinBB;
+			}
+		}
+		if (game->numCheckers[enemy] > 0) {
+			if (enemy == WHITE) {
+				printf("White is in check! (%d)\n", game->numCheckers[enemy]);
+			} else {
+				printf("Black is in check! (%d)\n", game->numCheckers[enemy]);
 			}
 		}
 
@@ -975,79 +1086,88 @@ Bitboard getAttackers(Position target, PieceColor color, const Game* game)
 	return bb;
 }
 
-Bitboard getMoves(Position from, const Game* game)
+Bitboard getCastleMoves(Position from, PieceColor color, const Game* game)
 {
-	assert(isPosValid(from));
-	assert(!isPosEmpty(from, game));
+	Bitboard bb = C64(0);
+	uint8_t rank = getRank(from);
+	uint8_t file = getFile(from);
+	if (rank == color * 7 && file == 4) {
+		if (game->moveCnt <= game->whenLostCR[color][QUEENSIDE] &&
+			game->board[from - 1] == NONE &&
+			game->board[from - 2] == NONE &&
+			getAttackers(from - 1, !color, game) == 0 &&
+			getAttackers(from - 2, !color, game) == 0)
+		{
+			setBit(bb, from - 2);
+		}
+		if (game->moveCnt <= game->whenLostCR[color][KINGSIDE] &&
+			game->board[from + 1] == NONE &&
+			game->board[from + 2] == NONE &&
+			getAttackers(from + 1, !color, game) == 0 &&
+			getAttackers(from + 2, !color, game) == 0)
+		{
+			setBit(bb, from + 2);
+		}
+	}
+	return bb;
+}
 
-	PieceInfo p = game->board[from];
-	PieceColor color = getPieceColor(p);
-	assert(color == game->colorToMove);
-	PieceColor enemy = getEnemyColor(color);
-	PieceType type = getPieceType(p);
+Bitboard getPawnMoves(Position from, PieceColor color, const Game* game)
+{
+	Bitboard bb = C64(0);
 	uint8_t rank = getRank(from);
 	uint8_t file = getFile(from);
 
-	PieceRef ref = game->refBoard[from];
-
-	Bitboard bb = game->attacksBB[color][ref & 0b1111];
-	bb &= ~game->piecesBB[color];
-
-	if (type == KING) {
-		if (rank == color * 7 && file == 4) {
-			if (game->moveCnt <= game->whenLostCR[color][QUEENSIDE] &&
-				game->board[from - 1] == NONE &&
-				getAttackers(from - 2, enemy, game) == 0)
-			{
-				setBit(bb, from - 2);
-			}
-			if (game->moveCnt <= game->whenLostCR[color][KINGSIDE] &&
-				game->board[from + 1] == NONE &&
-				getAttackers(from - 2, enemy, game) == 0)
-			{
-				setBit(bb, from + 2);
+	if (color == WHITE) {
+		if (rank < 7 && game->board[from + 8] == NONE) {
+			setBit(bb, from + 8);
+		}
+		if (rank == 1) {
+			if (game->board[from + 16] == NONE) {
+				setBit(bb, from + 16);
 			}
 		}
 	}
 
-	else if (type == PAWN) {
-		bb &= game->piecesBB[enemy];
-		if (color == WHITE) {
-			if (rank < 7 && game->board[from + 8] == NONE) {
-				setBit(bb, from + 8);
-			}
-			if (rank == 1) {
-				if (game->board[from + 16] == NONE) {
-					setBit(bb, from + 16);
-				}
-			}
-
-			if (game->enPassantFile != NONE && rank == 4) {
-				if (game->enPassantFile == file + 1)
-					setBit(bb, from + 9);
-				else if (game->enPassantFile == file - 1)
-					setBit(bb, from + 7);
-			}
+	else { // if black pawn
+		if (rank > 0 && game->board[from - 8] == NONE) {
+			setBit(bb, from - 8);
 		}
-
-		else { // if black pawn
-			if (rank > 0 && game->board[from - 8] == NONE) {
-				setBit(bb, from - 8);
-			}
-			if (rank == 6) {
-				if (game->board[from - 16] == NONE) {
-					setBit(bb, from - 16);
-				}
-			}
-
-			if (game->enPassantFile != NONE && rank == 3) {
-				if (game->enPassantFile == file + 1)
-					setBit(bb, from - 7);
-				else if (game->enPassantFile == file - 1)
-					setBit(bb, from - 9);
+		if (rank == 6) {
+			if (game->board[from - 16] == NONE) {
+				setBit(bb, from - 16);
 			}
 		}
 	}
+
+	return bb;
+}
+
+Bitboard getEnPassantMoves(Position from, PieceColor color, const Game* game)
+{
+	Bitboard bb = C64(0);
+	uint8_t rank = getRank(from);
+	uint8_t file = getFile(from);
+
+	if (color == WHITE) {
+		if (game->enPassantFile != NONE && rank == 4) {
+			if (game->enPassantFile == file + 1)
+				setBit(bb, from + 9);
+			else if (game->enPassantFile == file - 1)
+				setBit(bb, from + 7);
+		}
+
+	}
+
+	else {
+		if (game->enPassantFile != NONE && rank == 3) {
+			if (game->enPassantFile == file + 1)
+				setBit(bb, from - 7);
+			else if (game->enPassantFile == file - 1)
+				setBit(bb, from - 9);
+		}
+	}
+
 	return bb;
 }
 
@@ -1060,20 +1180,155 @@ Bitboard getLegalMoves(Position from, const Game* game)
 	if (color != game->colorToMove) return C64(0);
 	PieceColor enemy = getEnemyColor(color);
 	PieceType type = getPieceType(p);
-	uint8_t rank = getRank(from);
-	uint8_t file = getFile(from);
+	uint8_t numCheckers = game->numCheckers[color];
 
-	Bitboard bb = getMoves(from, game);
-	Bitboard checkersBB = (game->checkersBB[color]);
-	if (checkersBB) do {
-		Position pos = bitScanForward(checkersBB);
-	} while(checkersBB &= checkersBB - 1);
+	// if in double check, only king can move
+	if (numCheckers == 2 && type != KING) return C64(0);
+
+	PieceRef ref = game->refBoard[from];
+	Bitboard attacksBB = game->attacksBB[color][ref & 0b1111];
+
+	Bitboard bb, castleBB, pawnBB, enPassantBB;
+	// if not pawn
+	if (type != PAWN) {
+		// move is valid if it isn't occupied by same color piece
+		attacksBB &= ~game->piecesBB[color];
+		// if king, can't move to squares attacked by enemy pieces
+		if (type == KING) {
+			attacksBB &= ~game->totalAttacksBB[enemy];
+		}
+	}
+	else { // if pawn
+		// attack is valid only if enemy piece is there
+		attacksBB &= game->piecesBB[enemy];
+		// get normal pawn moves and en passant moves
+		pawnBB = getPawnMoves(from, color, game);
+		enPassantBB = getEnPassantMoves(from, color, game);
+	}
+
+	Position kingPos = game->pieces[color][0].pos;
+
+	if (numCheckers > 0) {
+		if (type == KING) {
+			// can't move to squares X-rayed by checking pieces
+			return attacksBB & ~game->checkXRayBB[color];
+		}
+
+		Position checkerPos = game->checkerPos[color];
+		Bitboard checkerBB = C64(1) << checkerPos;
+		Bitboard blockBB = getMiddleSquares(kingPos, checkerPos);
+		attacksBB &= (blockBB | checkerBB);
+
+		if (type == PAWN) {
+			pawnBB &= blockBB;
+			enPassantBB &= (blockBB | checkerBB);
+		}
+	}
+
+	if (type == KING) {
+		castleBB = getCastleMoves(from, color, game);
+		return attacksBB | castleBB;
+	}
+	else if (type == PAWN) {
+		bb = attacksBB | pawnBB | enPassantBB;
+
+		if (enPassantBB) {
+			// position of the to-be-captured pawn (en passant)
+			Position cap = getPos(getRank(from), game->enPassantFile);
+			Bitboard capBB = C64(1) << cap;
+			Bitboard fromBB = C64(1) << from;
+			// get attackers of the to-be-captured pawn
+			Bitboard atkersBB = getAttackers(cap, enemy, game);
+
+			if (atkersBB) do {
+				Position atkerPos = bitScanForward(atkersBB);
+				PieceType atkerType =
+					getPieceType(game->board[atkerPos]);
+
+				if (isSlider[atkerType]) {
+					// check if the direction from attacker to king
+					// coincides with the attacker's move direction
+					int8_t dir = getDirection(atkerPos, kingPos);
+					bool xRaysKing = false;
+					for (int i = 0; i < offsets[atkerType]; i++) {
+						if (dir == offset[atkerType][i]) {
+							xRaysKing = true;
+						}
+					}
+					// check next attacker
+					if (xRaysKing == false) continue;
+
+					Bitboard middleBB = getMiddleSquares(atkerPos, kingPos);
+					Bitboard enemiesInMiddle, alliesInMiddle;
+					enemiesInMiddle = middleBB & game->piecesBB[enemy];
+					alliesInMiddle = middleBB & game->piecesBB[color];
+					// if the to-be-captured pawn is
+					// the only enemy piece in the middle
+					// and if the en passant move will leave
+					// no other piece in between,
+					// and does not block check,
+					// the move is illegal.
+					if (enemiesInMiddle == capBB
+						&& (alliesInMiddle == fromBB
+							|| alliesInMiddle == 0)
+						&& (middleBB & enPassantBB != 0))
+					{
+						enPassantBB = C64(0);
+						break;
+					}
+				}
+			} while (atkersBB &= atkersBB - 1);
+		}
+
+	}
+	else {
+		bb = attacksBB;
+	}
+
+	// if the piece is pinned
+	if (testBit(game->pinnedBB[color], from)) {
+		bb &= getExtendedLine(kingPos, from);
+	}
+
 	return bb;
+}
+
+void calculateAllLegalMoves(Game* game)
+{
+	PieceColor color = game->colorToMove;
+	int cnt = 0;
+	for (int i = 0; i < 16; i++) {
+		Piece p = game->pieces[color][i];
+		Bitboard legalMoves = getLegalMoves(p.pos, game);
+		cnt += popCount(legalMoves);
+		game->legalMovesBB[color][i] = legalMoves;
+	}
+	if (cnt == 0) {
+		if (!isUnderCheck(color, game)) {
+			game->state = DRAW;
+			printf("Stalemate!\n");
+			return;
+		}
+		if (color == WHITE) {
+			game->state = BLACK_WON;
+			printf("Black wins!\n");
+		}
+		else {
+			game->state = WHITE_WON;
+			printf("White wins!\n");
+		}
+	}
+}
+
+void calculateGame(Game* game)
+{
+	calculateAllAttacks(game);
+	calculateAllLegalMoves(game);
 }
 
 bool isUnderCheck(PieceColor color, const Game* game)
 {
-	return game->checkersBB[color] != 0;
+	return game->numCheckers[color] != 0;
 }
 
 /*
