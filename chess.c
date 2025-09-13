@@ -47,9 +47,6 @@ void initGame(Game* game)
 	/*
 	for (int i = 0; i < 2; i++) {
 		printBitboard(game->piecesBB[i]);
-		for (int j = 0; j < 6; j++) {
-			printBitboard(game->pieceTypeBB[i][j]);
-		}
 	}
 	*/
 }
@@ -65,7 +62,6 @@ void createPiece(PieceColor color, PieceType type,
 	game->refBoard[p.pos] = color * 16 + game->cntPieces[color];
 	game->cntPieces[color]++;
 	setBit(game->piecesBB[color], p.pos);
-	setBit(game->pieceTypeBB[color][type], p.pos);
 }
 
 bool isPosEmpty(Position pos, const Game* game)
@@ -181,8 +177,6 @@ void movePiece(Position from, Position to, Game* game)
 
 	resetBit(game->piecesBB[color], from);
 	setBit(game->piecesBB[color], to);
-	resetBit(game->pieceTypeBB[color][type], from);
-	setBit(game->pieceTypeBB[color][type], to);
 }
 
 PieceRef capturePiece(Position pos, Game* game)
@@ -197,7 +191,6 @@ PieceRef capturePiece(Position pos, Game* game)
 	PieceType type = getPieceType(piece->info);
 
 	resetBit(game->piecesBB[color], pos);
-	resetBit(game->pieceTypeBB[color][type], pos);
 	return ref;
 }
 
@@ -467,7 +460,6 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 		}
 		movePiece(from, to, game);
 		if (promotion != NONE) {
-			printf("Promoted to %d!\n", promotion);
 			changeType(to, promotion, game);
 			move.type = promotion;
 		}
@@ -1051,7 +1043,7 @@ void calculateAllAttacks(Game* game)
 				}
 			}
 
-			if (!isSlider) continue;
+			if (!isSlider[type]) continue;
 
 			// calculate middle squares between enemy king and piece
 			Bitboard middleSquaresBB = getMiddleSquares(enemyKingPos, p.pos);
@@ -1121,10 +1113,10 @@ Bitboard getPawnMoves(Position from, PieceColor color, const Game* game)
 	if (color == WHITE) {
 		if (rank < 7 && game->board[from + 8] == NONE) {
 			setBit(bb, from + 8);
-		}
-		if (rank == 1) {
-			if (game->board[from + 16] == NONE) {
-				setBit(bb, from + 16);
+			if (rank == 1) {
+				if (game->board[from + 16] == NONE) {
+					setBit(bb, from + 16);
+				}
 			}
 		}
 	}
@@ -1132,10 +1124,10 @@ Bitboard getPawnMoves(Position from, PieceColor color, const Game* game)
 	else { // if black pawn
 		if (rank > 0 && game->board[from - 8] == NONE) {
 			setBit(bb, from - 8);
-		}
-		if (rank == 6) {
-			if (game->board[from - 16] == NONE) {
-				setBit(bb, from - 16);
+			if (rank == 6) {
+				if (game->board[from - 16] == NONE) {
+					setBit(bb, from - 16);
+				}
 			}
 		}
 	}
@@ -1287,6 +1279,7 @@ Bitboard getLegalMoves(Position from, const Game* game)
 
 	// if the piece is pinned
 	if (testBit(game->pinnedBB[color], from)) {
+		printf("Pinned %d\n", from);
 		bb &= getExtendedLine(kingPos, from);
 	}
 
@@ -1330,373 +1323,3 @@ bool isUnderCheck(PieceColor color, const Game* game)
 {
 	return game->numCheckers[color] != 0;
 }
-
-/*
-bool isPieceAttacking(Position from, Position to, const char board[8][8]) {
-	if (isPosEmpty(from, game)) return false;
-	PieceInfo piece = getPiece(from, game).info;
-	switch(getPieceType(piece))
-	{
-	case PAWN:
-		if (getPieceColor(piece) == WHITE) {
-			return from.rank + 1 == to.rank && abs(from.file - to.file) == 1;
-		}
-		else {
-			return from.rank - 1 == to.rank && abs(from.file - to.file) == 1;
-		}
-		return false;
-	case KNIGHT:
-		return isKnightMoveLegal(from, to);
-	case BISHOP:
-		return isBishopMoveLegal(from, to, game);
-	case ROOK:
-		return isRookMoveLegal(from, to, game);
-	case QUEEN:
-		return isQueenMoveLegal(from, to, game);
-	case KING:
-		return isKingMoveLegal(from, to, game);
-	default:
-		return false;
-	}
-}
-
-/*
-int getPawnAttackMoves(Position from, PieceColor color,
-		const char board[8][8], Position moves[])
-{
-	Position pos;
-	int cnt = 0;
-	if (color == WHITE) pos.rank = from.rank + 1;
-	else pos.rank = from.rank - 1;
-	for (int i = -1; i <= 1; i += 2) {
-		pos.file = from.file + i;
-		if (isPositionValid(pos)) moves[cnt++] = pos;
-	}
-	return cnt;
-}
-
-int getKnightMoves(Position from, const char board[8][8], Position moves[])
-{
-	Position pos;
-	int cnt = 0;
-	for (int i = 0; i < 8; i++) {
-		pos.rank = from.rank + knightMoves[i][0];
-		pos.file = from.file + knightMoves[i][1];
-		if (isPositionValid(pos)) moves[cnt++] = pos;
-	}
-	return cnt;
-}
-
-int getBishopMoves(Position from, const char board[8][8], Position moves[])
-{
-	Piece piece;
-	Position pos;
-	int cnt = 0;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int j = -1; j <= 1; j += 2) {
-			for (int step = 1; step < 8; step++) {
-				pos.rank = from.rank + i * step;
-				pos.file = from.file + j * step;
-				if (isPositionValid(pos) == false) break;
-				if (*getSquare(pos, board) == EMPTY) {
-					moves[cnt++] = pos;
-				} else {
-					moves[cnt++] = pos;
-					break;
-				}
-			}
-		}
-	}
-	return cnt;
-}
-
-int getRookMoves(Position from, const char board[8][8], Position moves[])
-{
-	Piece piece;
-	Position pos;
-	int cnt = 0;
-	pos.rank = from.rank;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.file = from.file + i * step;
-			if (isPositionValid(pos) == false) break;
-			if (*getSquare(pos, board) == EMPTY) {
-				moves[cnt++] = pos;
-			} else {
-				moves[cnt++] = pos;
-				break;
-			}
-		}
-	}
-	pos.file = from.file;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.rank = from.rank + i * step;
-			if (isPositionValid(pos) == false) break;
-			if (*getSquare(pos, board) == EMPTY) {
-				moves[cnt++] = pos;
-			} else {
-				moves[cnt++] = pos;
-				break;
-			}
-		}
-	}
-	return cnt;
-}
-
-int getQueenMoves(Position from, const char board[8][8], Position moves[])
-{
-	int nBishopMoves = getBishopMoves(from, board, moves);
-	int nRookMoves = getRookMoves(from, board, moves + nBishopMoves);
-	return nBishopMoves + nRookMoves;
-}
-
-int getKingMoves(Position from, const char board[8][8], Position moves[])
-{
-	Position pos;
-	int cnt = 0;
-	for (int i = 0; i < 8; i++) {
-		pos.rank = from.rank + kingMoves[i][0];
-		pos.file = from.file + kingMoves[i][1];
-		if (isPositionValid(pos)) moves[cnt++] = pos;
-	}
-	return cnt;
-}
-
-int getControlledPositions(PieceInfo piece, const char board[8][8], Position controlled[])
-{
-	switch(piece.piece.type)
-	{
-	case TYPE_NONE:
-		return 0;
-
-	case PAWN:
-		return getPawnAttackMoves(piece.pos, piece.piece.color, board, controlled);
-
-	case KNIGHT:
-		return getKnightMoves(piece.pos, board, controlled);
-
-	case BISHOP:
-		return getBishopMoves(piece.pos, board, controlled);
-
-	case ROOK:
-		return getRookMoves(piece.pos, board, controlled);
-
-	case QUEEN:
-		return getQueenMoves(piece.pos, board, controlled);
-
-	case KING:
-		return getKingMoves(piece.pos, board, controlled);
-
-	default:
-		return 0;
-	}
-}
-
-PieceInfo getKingInfo(PieceColor color, const char board[8][8])
-{
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			Piece piece = getPiece(board[i][j]);
-			if (piece.color == color)
-				return (PieceInfo){piece, (Position){.rank=i, .file=j}};
-		}
-	}
-}
-
-int getPiecesByColor(PieceColor color, const char board[8][8], PieceInfo pieces[16])
-{
-	int cnt = 0;
-	Piece piece;
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			piece = getPiece(board[i][j]);
-			if (piece.color == color) {
-				pieces[cnt++] = (PieceInfo){piece, (Position){.rank=i, .file=j}};
-			}
-		}
-	}
-	return cnt;
-}
-
-int updatePieces(Move* move, PieceInfo pieces[2][16]) {
-	PieceColor color = getPieceColor(move->piece);
-	PieceColor enemy = getEnemyColor(color);
-	for (int i = 0; i < nPieces[color]; i++) {
-		Piece* p = &pieces[color][i];
-		if (isPositionEqual(p->pos, move->from)) {
-			p->pos = move->to;
-		}
-	}
-	Position capPos;
-	if (move->isEnPassant) {
-		capPos.rank = move->to.rank;
-		capPos.file = move->from.file;
-	} else capPos = move->to;
-
-	for (int i = 0; i < nPieces[enemy]; i++) {
-		Piece* p = &pieces[enemy][i];
-		if (isPositionEqual(p->pos, capPos)) {
-			p->pos.rank = -1;
-			p->pos.file = -1;
-		}
-	}
-}
-
-int getIndexToKing(const PieceInfo pieces[16], int n)
-{
-	for(int i = 0; i < n; i++) {
-		if (pieces[i].piece.type == KING) {
-			return i;
-		}
-	}
-	return -1;
-}
-
-void calculateControlBoard(Game* game)
-{
-	for (int i = 0; i < 8; i++) {
-		for (int j = 0; j < 8; j++) {
-			for (int c = 0; c < 2; c++) {
-				game->controlBoard[i][j][c] = 0;
-			}
-		}
-	}
-	Position pos[MAX_LEGAL_MOVES];
-	uint8_t rank, file;
-	for (int i = 0; i < 2; i++) {
-		printf("%d\n", game->nPieces[i]);
-		for (int j = 0; j < game->nPieces[i]; j++) {
-			Piece p = game->pieces[i][j];
-			if (p.pos == NONE) continue;
-			int nPos = getControlledPositions(p, game->refBoard, pos);
-//			printf("%d%c @ %c%d - %d\n", p.piece.color, p.piece.type,
-//				p.pos.file + 'a', p.pos.rank + 1, nPos);
-			for (int k = 0; k < nPos; k++) {
-				rank = pos[k].rank;
-				file = pos[k].file;
-				game->controlBoard[rank][file][i] += 1;
-			}
-		}
-	}
-}
-
-void updateControl(PieceInfo pieces, int n, Game* game,
-	UpdateControlOption opt)
-{
-	for (int i = 0; i < n; i++) {
-		int nPos = getControlledPositions(p, game->refBoard, pos);
-		pieces[];
-	}
-}
-
-int getLongAttackers(Position target, const char board[8][8], PieceInfo attackers[])
-{
-	int cnt = 0;
-	Piece piece;
-	Position pos;
-
-	for (int i = -1; i <= 1; i += 2) {
-		for (int j = -1; j <= 1; j += 2) {
-			for (int step = 1; step < 8; step++) {
-				pos.rank = target.rank + i * step;
-				pos.file = target.file + j * step;
-				if (isPositionValid(pos) == false) break;
-				piece = getPiece(*getSquare(pos, board));
-				if (piece.type == BISHOP || piece.type == QUEEN) {
-					attackers[cnt++] = (PieceInfo){piece, pos};
-					break;
-				}
-			}
-		}
-	}
-
-	pos.rank = target.rank;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.file = target.file + i * step;
-			if (isPositionValid(pos) == false) break;
-			piece = getPiece(*getSquare(pos, board));
-			if (piece.type == ROOK || piece.type == QUEEN) {
-				attackers[cnt++] = (PieceInfo){piece, pos};
-				break;
-			}
-		}
-	}
-
-	pos.file = target.file;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.rank = target.rank + i * step;
-			if (isPositionValid(pos) == false) break;
-			piece = getPiece(*getSquare(pos, board));
-			if (piece.type == ROOK || piece.type == QUEEN) {
-				attackers[cnt++] = (PieceInfo){piece, pos};
-				break;
-			}
-		}
-	}
-	return cnt;
-}
-
-int getAffectedAttackers(MoveInfo* move, const char board[8][8],
-	PieceInfo attackers[]);
-{
-	int cnt = 0;
-	Piece piece;
-	Position pos1, pos2;
-
-	for (int i = -1; i <= 1; i += 2) {
-		for (int j = -1; j <= 1; j += 2) {
-			for (int step = 1; step < 8; step++) {
-				pos1.rank = move->from.rank + i * step;
-				pos1.file = move->from.file + j * step;
-				pos2.rank = move->to.rank + i * step;
-				pos2.file = move->to.file + j * step;
-				if (isPositionValid(pos) == false) break;
-				if (isPositionEqual(pos, move->to)) {
-					break;
-				}
-				piece = getPiece(*getSquare(pos, board));
-				if (piece.type == BISHOP || piece.type == QUEEN) {
-					attackers[cnt++] = (PieceInfo){piece, pos};
-					break;
-				}
-			}
-		}
-	}
-
-	pos.rank = move->from.rank;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.file = move->from.file + i * step;
-			if (isPositionValid(pos) == false) break;
-			if (isPositionEqual(pos, move->to)) {
-				break;
-			}
-			piece = getPiece(*getSquare(pos, board));
-			if (piece.type == ROOK || piece.type == QUEEN) {
-				move->affectedAttackers[cnt++] = (PieceInfo){piece, pos};
-				break;
-			}
-		}
-	}
-
-	pos.file = move->from.file;
-	for (int i = -1; i <= 1; i += 2) {
-		for (int step = 1; step < 8; step++) {
-			pos.rank = move->from.rank + i * step;
-			if (isPositionValid(pos) == false) break;
-			if (isPositionEqual(pos, move->to)) {
-				break;
-			}
-			piece = getPiece(*getSquare(pos, board));
-			if (piece.type == ROOK || piece.type == QUEEN) {
-				move->affectedAttackers[cnt++] = (PieceInfo){piece, pos};
-				break;
-			}
-		}
-	}
-	return cnt;
-}
-*/

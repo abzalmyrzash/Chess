@@ -82,7 +82,6 @@ typedef struct {
 	PieceInfo board[64];
 	PieceRef refBoard[64];
 	Bitboard piecesBB[2]; // bitboard of pieces by color
-	Bitboard pieceTypeBB[2][6]; // bitboard of pieces by color and type
 	Bitboard attacksBB[2][16]; // squares attacked by each individual piece
 	Bitboard totalAttacksBB[2]; // squares attacked by color in total
 	uint8_t numCheckers[2];

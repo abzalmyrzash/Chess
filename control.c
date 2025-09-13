@@ -9,13 +9,11 @@ void onClick(float x, float y, Game* game)
 		int8_t row, column;
 		row = floor((y - promPopup.y) / squareH);
 		column = floor((x - promPopup.x) / squareW);
-		printf("%d %d\n", row, column);
 		if (row < 0 || row > 1 || column < 0 || column > 1) {
 			promotion = NONE;
 			return;
 		}
 		promotion = promOptions[row][column];
-		printf("%d\n", promotion);
 		return;
 	}
 	uint8_t rank = 7 - floor((y - boardY) / squareH);
@@ -51,7 +49,6 @@ void onRelease(float x, float y, Game* game)
 		int8_t row, column;
 		row = floor((y - promPopup.y) / squareH);
 		column = floor((x - promPopup.x) / squareW);
-		printf("%d %d\n", row, column);
 		if (row < 0 || row > 1 || column < 0 || column > 1 ||
 			promotion == NONE || promotion != promOptions[row][column])
 		{
@@ -83,6 +80,7 @@ void onRelease(float x, float y, Game* game)
 	selFrom = NONE;
 	selTo = NONE;
 	selPiece = NONE;
+	promotion = NONE;
 }
 
 static bool ctrl = false;
