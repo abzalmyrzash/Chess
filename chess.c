@@ -173,7 +173,6 @@ void movePiece(Position from, Position to, Game* game)
 	game->refBoard[from] = NONE;
 	
 	PieceColor color = getPieceColor(piece->info);
-	PieceType type = getPieceType(piece->info);
 
 	resetBit(game->piecesBB[color], from);
 	setBit(game->piecesBB[color], to);
@@ -522,14 +521,16 @@ void undoMove(Game* game)
 
 	if (game->moveCnt == 0) {
 		game->enPassantFile = NONE;
-		return;
 	}
-	Move prevMove = game->history[game->moveCnt - 1];
-	if (prevMove.type == DOUBLESTEP) {
-		game->enPassantFile = getFile(prevMove.from);
-	} else {
-		game->enPassantFile = NONE;
+	else {
+		Move prevMove = game->history[game->moveCnt - 1];
+		if (prevMove.type == DOUBLESTEP) {
+			game->enPassantFile = getFile(prevMove.from);
+		} else {
+			game->enPassantFile = NONE;
+		}
 	}
+
 	calculateGame(game);
 }
 
@@ -978,9 +979,10 @@ Bitboard getMiddleSquares(Position from, Position to)
 	int8_t direction = getDirection(from, to);
 	if (direction == 0) return bb;
 
-	for (int8_t i = from; i != to;) {
+	for (int8_t i = from; ;) {
 		i = mailbox[mailbox64[i] + direction];
 		if (i == -1) break;
+		if (i == to) break;
 		setBit(bb, i);
 	}
 
@@ -1052,7 +1054,9 @@ void calculateAllAttacks(Game* game)
 			// a piece is pinned if it's attacked and it's in the middle
 			// and it's an enemy piece (and it's the only one in the middle)
 			Bitboard pinBB = middleSquaresBB & attacksBB & game->piecesBB[enemy];
-			if (popCount(pinBB) == 1) {
+			Bitboard middlePieces = middleSquaresBB &
+				(game->piecesBB[enemy] | game->piecesBB[color]);
+			if (popCount(middlePieces) == 1 && pinBB) {
 				game->pinnedBB[enemy] |= pinBB;
 			}
 		}
