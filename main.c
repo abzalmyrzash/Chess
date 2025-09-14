@@ -2,6 +2,9 @@
 #include "chess.h"
 #include "window.h"
 #include "control.h"
+#include "net/network.h"
+#include "net/server.h"
+#include "net/client.h"
 
 #define SCREEN_HEIGHT 1000
 #define SCREEN_WIDTH 1000
@@ -12,12 +15,62 @@ void clear_stdin() {
 }
 
 int main(int argc, char** argv) {
-	FILE* file;
-	if (argc == 2) {
-		file = fopen(argv[1], "r");
-	} else {
-		file = stdin;
+	SOCKET serverSocket, socket;
+	int iResult;
+	bool offline = false;
+	bool isServer = false;
+	char* windowName;
+	PieceColor playerColor;
+
+menu:
+	printf("1. Play offline\n");
+	printf("2. Start server\n");
+	printf("3. Connect\n");
+	printf("4. Quit\n");
+	printf("Type option number: ");
+	int opt;
+	if (scanf("%d", &opt) != 1) {
+		clear_stdin();
+		goto menu;
 	}
+	switch(opt)
+	{
+	case 1:
+		offline = true;
+		socket = INVALID_SOCKET;
+		windowName = "Chess (offline)";
+		playerColor = NONE;
+		break;
+	case 2:
+		iResult = startServerAndWaitForClient(&serverSocket, &socket);
+		if (iResult == -1) return 1;
+		isServer = true;
+		windowName = "Chess (server)";
+		playerColor = WHITE;
+		break;
+	case 3:
+		char servername[256];
+		printf("Server name/IP: ");
+		scanf("%255s", servername);
+		iResult = startClientAndConnect(servername, &socket);
+		if (iResult == -1) return 1;
+		windowName = "Chess (client)";
+		playerColor = BLACK;
+		break;
+	case 4:
+		return 0;
+		break;
+	default:
+		goto menu;
+	}
+	char recvbuf[1024];
+
+	ReceiveThreadData recvThrData;
+	recvThrData.socket = socket;
+	recvThrData.recvbuf = recvbuf;
+	recvThrData.recvlen = 0;
+	recvThrData.status = NO_THREAD;
+	recvThrData.result = 0;
 
 	Game game;
 	initGame(&game);
@@ -25,10 +78,10 @@ int main(int argc, char** argv) {
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window* window;
 	SDL_Renderer* renderer;
-	window = SDL_CreateWindow("Chess", SCREEN_HEIGHT, SCREEN_WIDTH, 0);
+	window = SDL_CreateWindow(windowName, SCREEN_HEIGHT, SCREEN_WIDTH, 0);
 	renderer = SDL_CreateRenderer(window, NULL);
 	SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE);
-	initWindow(renderer);
+	initWindow(renderer, playerColor);
 	loadTextures(renderer);
 
 	render(renderer, &game);
@@ -37,20 +90,30 @@ int main(int argc, char** argv) {
 	bool quit = false;
 
 	while (!quit) {
+		if (recvThrData.status == NO_THREAD && playerColor != NONE &&
+			game.colorToMove != playerColor)
+		{
+			startReceiveThread(&recvThrData, 3);
+		}
+		if (recvThrData.status == THREAD_FINISHED) {
+			if (onReceive(&recvThrData, &game) <= 0) quit = true;
+		}
+
 		while(SDL_PollEvent(&e)) {
 			switch(e.type)
 			{
 			case SDL_EVENT_MOUSE_BUTTON_DOWN:
-				onClick(e.button.x, e.button.y, &game);
+				onClick(e.button.x, e.button.y, &game, playerColor);
 				break;
 			case SDL_EVENT_MOUSE_MOTION:
 				onMove(e.button.x, e.button.y, &game);
 				break;
 			case SDL_EVENT_MOUSE_BUTTON_UP:
-				onRelease(e.button.x, e.button.y, &game);
+				onRelease(e.button.x, e.button.y, &game, playerColor,
+					socket, &quit);
 				break;
 			case SDL_EVENT_KEY_DOWN:
-				onKeyDown(e.key, &game);
+				onKeyDown(e.key, &game, socket, &quit);
 				break;
 			case SDL_EVENT_KEY_UP:
 				onKeyUp(e.key, &game);
@@ -63,8 +126,22 @@ int main(int argc, char** argv) {
 		render(renderer, &game);
 		SDL_Delay(10);
 	}
+
+	if (!offline) {
+		if (isServer) {
+			closeServer(serverSocket, socket);
+		}
+		else {
+			closeClient(socket);
+		}
+	}
+
 	return 0;
 
+//
+
+/*
+	FILE* file = stdin;
 	char notation[10];
 	while (true) {
 		printf("%d. ", game.moveCnt + 1);
@@ -86,12 +163,10 @@ int main(int argc, char** argv) {
 			printBoard(&game);
 			continue;
 		}
-		/*
 		if (strcmp(notation, "ctrl\n") == 0) {
-			printControlBoard(&game);
+		//	printControlBoard(&game);
 			continue;
 		}
-		*/
 		if (strcmp(notation, "exit\n") == 0) {
 			break;
 		}
@@ -105,4 +180,5 @@ int main(int argc, char** argv) {
 			printf("Illegal move!\n");
 		}
 	}
+*/
 }

@@ -67,7 +67,7 @@ void loadTextures(SDL_Renderer* renderer)
 	SDL_SetRenderTarget(renderer, NULL);
 }
 
-void initWindow(SDL_Renderer* renderer)
+void initWindow(SDL_Renderer* renderer, PieceColor playerColor)
 {
 	mouseX = 0;
 	mouseY = 0;
@@ -78,11 +78,11 @@ void initWindow(SDL_Renderer* renderer)
 	prevTo = NONE;
 	promotion = NONE;
 	isPromoting = false;
-	calcWindowVars();
+	calcWindowVars(playerColor);
 	SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
 }
 
-void calcWindowVars()
+void calcWindowVars(PieceColor playerColor)
 {
 	boardX = 100;
 	boardY = 100;
@@ -92,13 +92,27 @@ void calcWindowVars()
 
 	SDL_FRect rect = {.w = squareW, .h = squareH };
 
-	for (int i = 0; i < 8; i++) {
-		rect.y = boardY + (7 - i) * squareH;
-		for (int j = 0; j < 8; j++) {
-			rect.x = boardX + j * squareH;
-			boardSquares[getPos(i, j)] = rect;
+	if (playerColor == WHITE || playerColor == NONE)
+	{
+		for (int i = 0; i < 8; i++) {
+			rect.y = boardY + (7 - i) * squareH;
+			for (int j = 0; j < 8; j++) {
+				rect.x = boardX + j * squareW;
+				boardSquares[getPos(i, j)] = rect;
+			}
 		}
 	}
+
+	else {
+		for (int i = 0; i < 8; i++) {
+			rect.y = boardY + i * squareH;
+			for (int j = 0; j < 8; j++) {
+				rect.x = boardX + (7 - j) * squareW;
+				boardSquares[getPos(i, j)] = rect;
+			}
+		}
+	}
+
 	promPopup = (SDL_FRect) { .y = 200, .w = 200, .h = 200 };
 }
 
@@ -110,9 +124,10 @@ void renderPiece(SDL_Renderer* renderer, PieceInfo piece, SDL_FRect* rect)
 
 void render(SDL_Renderer* renderer, Game* game)
 {
-	if (game->colorToMove == WHITE)
-		setColor(renderer, &BACKGROUND_COLOR);
-	else setColor(renderer, &BACKGROUND_COLOR2);
+//	if (game->colorToMove == WHITE)
+//		setColor(renderer, &BACKGROUND_COLOR);
+//	else setColor(renderer, &BACKGROUND_COLOR2);
+	setColor(renderer, &BACKGROUND_COLOR);
 
 	static PieceColor prevColor = WHITE;
 	if (prevColor != game->colorToMove) {

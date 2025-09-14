@@ -309,6 +309,7 @@ void changeType(Position pos, PieceType type, Game* game)
 {
 	Piece* p = getPiecePtr(pos, game);
 	p->info += type - getPieceType(p->info);
+	game->board[p->pos] = p->info;
 }
 
 char getPieceSymbol(PieceInfo p)

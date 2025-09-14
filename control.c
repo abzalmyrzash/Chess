@@ -2,8 +2,11 @@
 #include "window.h"
 #include <stdio.h>
 #include <math.h>
+#include <assert.h>
 
-void onClick(float x, float y, Game* game)
+char sendbuf[1024];
+
+void onClick(float x, float y, Game* game, PieceColor playerColor)
 {
 	if (isPromoting) {
 		int8_t row, column;
@@ -16,14 +19,24 @@ void onClick(float x, float y, Game* game)
 		promotion = promOptions[row][column];
 		return;
 	}
-	uint8_t rank = 7 - floor((y - boardY) / squareH);
-	uint8_t file = floor((x - boardX) / squareW);
+
+	uint8_t rank;
+	uint8_t file;
+	if (playerColor == WHITE || playerColor == NONE) {
+		rank = 7 - floor((y - boardY) / squareH);
+		file = floor((x - boardX) / squareW);
+	} else {
+		rank = floor((y - boardY) / squareH);
+		file = 7 - floor((x - boardX) / squareW);
+	}
+
 	selFrom = getPos(rank, file);
 	if (isPosValid(selFrom) == false) goto reset;
 	selPiece = game->refBoard[selFrom];
 	if (selPiece == NONE) goto reset;
 	PieceColor color = getPieceColor(getPieceByRef(selPiece, game).info);
 	if (game->colorToMove != color) goto reset;
+	if (game->colorToMove != playerColor && playerColor != NONE) goto reset;
 	Bitboard legalMoves = *((Bitboard*)game->legalMovesBB + selPiece);
 	if (legalMoves == 0) goto reset;
 	mouseX = x;
@@ -42,7 +55,8 @@ void onMove(float x, float y, Game* game)
 	mouseY = y;
 }
 
-void onRelease(float x, float y, Game* game)
+void onRelease(float x, float y, Game* game, PieceColor playerColor,
+	SOCKET socket, bool* quit)
 {
 	if (selPiece == NONE) return;
 	if (isPromoting) {
@@ -60,22 +74,49 @@ void onRelease(float x, float y, Game* game)
 		goto makeMove;
 	}
 
-	uint8_t rank = 7 - floor((y - boardY) / squareH);
-	uint8_t file = floor((x - boardX) / squareW);
+	uint8_t rank;
+	uint8_t file;
+	if (playerColor == WHITE || playerColor == NONE) {
+		rank = 7 - floor((y - boardY) / squareH);
+		file = floor((x - boardX) / squareW);
+	} else {
+		rank = floor((y - boardY) / squareH);
+		file = 7 - floor((x - boardX) / squareW);
+	}
+
 	selTo = getPos(rank, file);
 	if (isMovePromotion(selFrom, selTo, game)
 		&& isMoveLegal(selFrom, selTo, game))
 	{
 		isPromoting = true;
-		promPopup.x = boardX + (file - 0.5) * squareW;
+		if (playerColor == WHITE || playerColor == NONE) {
+			promPopup.x = boardX + (file - 0.5) * squareW;
+		} else {
+			promPopup.x = boardX + ((7 - file) - 0.5) * squareW;
+		}
 		return;
 	}
+
 	makeMove:
 	Move move = checkAndMove(selFrom, selTo, promotion, game);
 	if (move.type != NONE) {
 		prevFrom = selFrom;
 		prevTo = selTo;
+		if (socket != INVALID_SOCKET) {
+			int sendlen = 3;
+			sendbuf[0] = selFrom;
+			sendbuf[1] = selTo;
+			sendbuf[2] = promotion;
+			int iResult;
+			iResult = sendData(socket, sendbuf, sendlen);
+			if (iResult == -1) {
+				printf("send failed!\n");
+				fflush(stdout);
+				*quit = true;
+			}
+		}
 	}
+
 	reset:
 	selFrom = NONE;
 	selTo = NONE;
@@ -83,9 +124,28 @@ void onRelease(float x, float y, Game* game)
 	promotion = NONE;
 }
 
+int onReceive(ReceiveThreadData* data, Game* game)
+{
+	assert(data->status == THREAD_FINISHED);
+	if (data->result <= 0) return data->result;
+	data->status = NO_THREAD;
+	Position from = data->recvbuf[0];
+	Position to = data->recvbuf[1];
+	PieceType prom = data->recvbuf[2];
+	Move move = checkAndMove(from, to, prom, game);
+	if (move.type == NONE) {
+		printf("Received illegal move! (%d %d %d)\n", from, to, prom);
+		return -1;
+	} else {
+		prevFrom = from;
+		prevTo = to;
+		return data->result;
+	}
+}
+
 static bool ctrl = false;
 static bool shift = false;
-void onKeyDown(SDL_KeyboardEvent event, Game* game)
+void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 {
 	switch(event.key)
 	{
@@ -96,14 +156,20 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game)
 		shift = true;
 		break;
 	case SDLK_Z:
-		if (ctrl) {
+		if (ctrl && socket == INVALID_SOCKET) {
 			if (shift) redoMove(game);
 			else undoMove(game);
 		}
 		break;
 	case SDLK_Y:
-		if (!ctrl) break;
-		redoMove(game);
+		if (ctrl && socket == INVALID_SOCKET) {
+			redoMove(game);
+		}
+		break;
+	case SDLK_Q:
+		if (ctrl) {
+			*quit = true;
+		}
 		break;
 	default:
 		break;

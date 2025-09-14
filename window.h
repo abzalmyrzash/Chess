@@ -17,7 +17,7 @@ extern SDL_FRect promPopup;
 extern const PieceType promOptions[2][2];
 
 void loadTextures(SDL_Renderer* renderer);
-void initWindow(SDL_Renderer* renderer);
-void calcWindowVars();
+void initWindow(SDL_Renderer* renderer, PieceColor playerColor);
+void calcWindowVars(PieceColor playerColor);
 void render(SDL_Renderer* renderer, Game* game);
 void renderPiece(SDL_Renderer* renderer, PieceInfo piece, SDL_FRect* rect);
