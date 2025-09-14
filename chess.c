@@ -1234,7 +1234,6 @@ Bitboard getLegalMoves(Position from, const Game* game)
 			// get enemy attackers of our pawn and the to-be-captured pawn
 			Bitboard atkersBB = getAttackers(from, enemy, game) |
 				getAttackers(cap, enemy, game);
-			printBitboard(atkersBB);
 
 			if (atkersBB) do {
 				Position atkerPos = bitScanForward(atkersBB);
@@ -1255,11 +1254,9 @@ Bitboard getLegalMoves(Position from, const Game* game)
 					if (xRaysKing == false) continue;
 
 					Bitboard middleBB = getMiddleSquares(atkerPos, kingPos);
-					printBitboard(middleBB);
 					Bitboard otherPiecesInMiddle = middleBB
 						& (game->piecesBB[color] | game->piecesBB[enemy])
 						& ~(capBB | fromBB);
-					printBitboard(otherPiecesInMiddle);
 					// if there are no other pieces in the middle
 					// and if the destination of the move isn't either,
 					// then the move is illegal.
