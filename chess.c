@@ -836,7 +836,6 @@ Move checkAndMove(Position from, Position to, PieceType prom,
 	Move move;
 	if (isMoveLegal(from, to, game) == false) {
 		move.type = ILLEGAL;
-		printf("Illegal move!\n");
 		return move;
 	}
 	if (isPromotionValid(from, to, prom, game) == false) {
@@ -1056,7 +1055,7 @@ void calculateAllAttacks(Game* game)
 			Bitboard pinBB = middleSquaresBB & attacksBB & game->piecesBB[enemy];
 			Bitboard middlePieces = middleSquaresBB &
 				(game->piecesBB[enemy] | game->piecesBB[color]);
-			if (popCount(middlePieces) == 1 && pinBB) {
+			if (middlePieces == pinBB) {
 				game->pinnedBB[enemy] |= pinBB;
 			}
 		}
@@ -1282,7 +1281,6 @@ Bitboard getLegalMoves(Position from, const Game* game)
 
 	// if the piece is pinned
 	if (testBit(game->pinnedBB[color], from)) {
-		printf("Pinned %d\n", from);
 		bb &= getExtendedLine(kingPos, from);
 	}
 

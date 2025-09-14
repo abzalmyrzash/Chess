@@ -85,7 +85,6 @@ menu:
 	loadTextures(renderer);
 
 	render(renderer, &game);
-	printBoard(&game);
 	SDL_Event e;
 	bool quit = false;
 
