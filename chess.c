@@ -1218,7 +1218,7 @@ Bitboard getLegalMoves(Position from, const Game* game)
 
 		if (type == PAWN) {
 			pawnBB &= blockBB;
-			enPassantBB &= (blockBB | checkerBB);
+			enPassantBB &= blockBB;
 		}
 	}
 
@@ -1227,15 +1227,15 @@ Bitboard getLegalMoves(Position from, const Game* game)
 		return attacksBB | castleBB;
 	}
 	else if (type == PAWN) {
-		bb = attacksBB | pawnBB | enPassantBB;
-
 		if (enPassantBB) {
 			// position of the to-be-captured pawn (en passant)
 			Position cap = getPos(getRank(from), game->enPassantFile);
 			Bitboard capBB = C64(1) << cap;
 			Bitboard fromBB = C64(1) << from;
-			// get attackers of the to-be-captured pawn
-			Bitboard atkersBB = getAttackers(cap, enemy, game);
+			// get enemy attackers of our pawn and the to-be-captured pawn
+			Bitboard atkersBB = getAttackers(from, enemy, game) |
+				getAttackers(cap, enemy, game);
+			printBitboard(atkersBB);
 
 			if (atkersBB) do {
 				Position atkerPos = bitScanForward(atkersBB);
@@ -1256,19 +1256,16 @@ Bitboard getLegalMoves(Position from, const Game* game)
 					if (xRaysKing == false) continue;
 
 					Bitboard middleBB = getMiddleSquares(atkerPos, kingPos);
-					Bitboard enemiesInMiddle, alliesInMiddle;
-					enemiesInMiddle = middleBB & game->piecesBB[enemy];
-					alliesInMiddle = middleBB & game->piecesBB[color];
-					// if the to-be-captured pawn is
-					// the only enemy piece in the middle
-					// and if the en passant move will leave
-					// no other piece in between,
-					// and does not block check,
-					// the move is illegal.
-					if (enemiesInMiddle == capBB
-						&& (alliesInMiddle == fromBB
-							|| alliesInMiddle == 0)
-						&& (middleBB & enPassantBB != 0))
+					printBitboard(middleBB);
+					Bitboard otherPiecesInMiddle = middleBB
+						& (game->piecesBB[color] | game->piecesBB[enemy])
+						& ~(capBB | fromBB);
+					printBitboard(otherPiecesInMiddle);
+					// if there are no other pieces in the middle
+					// and if the destination of the move isn't either,
+					// then the move is illegal.
+					if (otherPiecesInMiddle == 0
+						&& (middleBB & enPassantBB) == 0)
 					{
 						enPassantBB = C64(0);
 						break;
@@ -1277,6 +1274,7 @@ Bitboard getLegalMoves(Position from, const Game* game)
 			} while (atkersBB &= atkersBB - 1);
 		}
 
+		bb = attacksBB | pawnBB | enPassantBB;
 	}
 	else {
 		bb = attacksBB;
