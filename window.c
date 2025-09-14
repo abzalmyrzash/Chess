@@ -145,7 +145,9 @@ void render(SDL_Renderer* renderer, Game* game)
 			else squareColor = &SQUARE_COLOR_LIGHT;
 			pos = getPos(i, j);
 			renderRect(renderer, &boardSquares[pos], 0, squareColor, NULL);
-			if (pos == prevFrom || pos == prevTo) {
+			if (game->moveCnt == game->totalMoves
+				&& (pos == prevFrom || pos == prevTo))
+			{
 				renderRect(renderer, &boardSquares[pos], 0, &MOVE_COLOR, NULL);
 			}
 		}

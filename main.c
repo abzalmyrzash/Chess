@@ -1,4 +1,6 @@
-#include "stdio.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 #include "chess.h"
 #include "window.h"
 #include "control.h"
@@ -15,6 +17,8 @@ void clear_stdin() {
 }
 
 int main(int argc, char** argv) {
+	srand(time(NULL));
+
 	SOCKET serverSocket, socket;
 	int iResult;
 	bool offline = false;
@@ -33,6 +37,8 @@ menu:
 		clear_stdin();
 		goto menu;
 	}
+	clear_stdin();
+
 	switch(opt)
 	{
 	case 1:
@@ -41,13 +47,43 @@ menu:
 		windowName = "Chess (offline)";
 		playerColor = NONE;
 		break;
+
 	case 2:
+		printf("Choose color\n");
+		printf("W for White, B for Black, any other symbol for random): ");
+		char colorChar;
+		scanf("%c", &colorChar);
+		clear_stdin();
+
+		switch(colorChar)
+		{
+		case 'W':
+		case 'w':
+			playerColor = WHITE;
+			break;
+		case 'B':
+		case 'b':
+			playerColor = BLACK;
+			break;
+		default:
+			playerColor = rand() % 2;
+			break;
+		}
+
+		if (playerColor == WHITE) {
+			printf("Selected White\n");
+		} else {
+			printf("Selected Black\n");
+		}
+
 		iResult = startServerAndWaitForClient(&serverSocket, &socket);
 		if (iResult == -1) return 1;
 		isServer = true;
 		windowName = "Chess (server)";
-		playerColor = WHITE;
+
+		send(socket, (char*)&playerColor, 1, 0);
 		break;
+
 	case 3:
 		char servername[256];
 		printf("Server name/IP: ");
@@ -55,11 +91,30 @@ menu:
 		iResult = startClientAndConnect(servername, &socket);
 		if (iResult == -1) return 1;
 		windowName = "Chess (client)";
-		playerColor = BLACK;
+
+		iResult = recv(socket, (char*)&playerColor, 1, 0);
+		if (iResult > 0) {
+			playerColor = !playerColor;
+			if (playerColor == WHITE) {
+				printf("Selected White\n");
+			} else {
+				printf("Selected Black\n");
+			}
+		}
+		else if (iResult == 0) {
+			printf("Server disconnected\n");
+			return 1;
+		} else {
+			printf("Receive playerColor error\n");
+			return 1;
+		}
+
 		break;
+
 	case 4:
 		return 0;
 		break;
+
 	default:
 		goto menu;
 	}
