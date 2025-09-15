@@ -50,7 +50,7 @@ menu:
 
 	case 2:
 		printf("Choose color\n");
-		printf("W for White, B for Black, any other symbol for random): ");
+		printf("(W for White, B for Black, any other symbol for random): ");
 		char colorChar;
 		scanf("%c", &colorChar);
 		clear_stdin();
