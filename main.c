@@ -7,16 +7,48 @@
 #include "net/network.h"
 #include "net/server.h"
 #include "net/client.h"
+#include "test.h"
 
 #define SCREEN_HEIGHT 1000
 #define SCREEN_WIDTH 1000
+
+#define DEFAULT_FEN "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 
 void clear_stdin() {
 	int c;
 	while ((c = getchar()) != '\n' && c != EOF) { }
 }
 
+void inputFEN(char* fenBuffer, int fenLen, char** FEN) {
+	printf("Enter FEN (leave empty for default board position): ");
+	fgets(fenBuffer, fenLen, stdin);
+	fenBuffer[strcspn(fenBuffer, "\n")] = '\0';
+	if (strlen(fenBuffer) == 0) *FEN = DEFAULT_FEN;
+	else *FEN = fenBuffer;
+}
+
 int main(int argc, char** argv) {
+	if (argc > 1) {
+		int depth;
+		sscanf(argv[1], "%d", &depth);
+		Game game;
+		initGameFEN(&game, argv[2]);
+		calculateGame(&game);
+		int i = 0;
+		if (argc > 3) {
+			char* str = argv[3];
+			while (*str != '\0') {
+				moveByNotation(str, &game);
+				while (*str != ' ') str++;
+				if (*str == '\0') break;
+				while (*str == ' ') str++;
+			}
+		}
+		printf("\n%llu", generateAndCountMoves(depth, &game, true));
+		
+		return 0;
+	}
+
 	srand(time(NULL));
 
 	SOCKET serverSocket, socket;
@@ -25,12 +57,17 @@ int main(int argc, char** argv) {
 	bool isServer = false;
 	char* windowName;
 	PieceColor playerColor;
+	char* FEN;
+	const int fenLen = 100;
+	char fenBuffer[fenLen];
+	Game game;
 
 menu:
 	printf("1. Play offline\n");
 	printf("2. Start server\n");
 	printf("3. Connect\n");
-	printf("4. Quit\n");
+	printf("4. Test move generation\n");
+	printf("5. Quit\n");
 	printf("Type option number: ");
 	int opt;
 	if (scanf("%d", &opt) != 1) {
@@ -112,12 +149,44 @@ menu:
 		break;
 
 	case 4:
+		int depth;
+		inputFEN(fenBuffer, fenLen, &FEN);
+		initGameFEN(&game, FEN);
+		calculateGame(&game);
+		printBoard(&game);
+		for (PieceColor color = WHITE; color <= BLACK; color++) {
+			printf("%d\n", game.cntPieces[color]);
+			for (int i = 0; i < 16; i++) {
+				printf("%d - %d - %d\n", i, game.pieces[color][i].info, game.pieces[color][i].pos);
+			}
+		}
+		printf("Castling rights: ");
+		if (game.whenLostCR[WHITE][KINGSIDE] == NEVER) printf("K");
+		if (game.whenLostCR[WHITE][QUEENSIDE] == NEVER) printf("Q");
+		if (game.whenLostCR[BLACK][KINGSIDE] == NEVER) printf("k");
+		if (game.whenLostCR[BLACK][QUEENSIDE] == NEVER) printf("q");
+		printf("\n");
+		printf("Move cnt: %d\n", game.moveCnt);
+		printf("Last pawn move or last capture: %d\n", game.lastPawnOrCapture);
+		printf("En passant file: %d\n", game.enPassantFile);
+
+		while (1) {
+			printf("Depth: ");
+			scanf("%d", &depth);
+			if (depth < 0) return 0;
+			printf("Generated moves: %llu\n", generateAndCountMoves(depth, &game, false));
+		}
+
+		break;
+
+	case 5:
 		return 0;
 		break;
 
 	default:
 		goto menu;
 	}
+
 	char recvbuf[1024];
 
 	ReceiveThreadData recvThrData;
@@ -127,8 +196,12 @@ menu:
 	recvThrData.status = NO_THREAD;
 	recvThrData.result = 0;
 
-	Game game;
-	initGame(&game);
+	if (offline || isServer) {
+		inputFEN(fenBuffer, fenLen, &FEN);
+	}
+
+	initGameFEN(&game, FEN);
+	calculateGame(&game);
 
 	SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window* window;

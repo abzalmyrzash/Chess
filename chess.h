@@ -8,6 +8,8 @@
 #define MAX_GAME_LENGTH 10000
 #define NEVER MAX_GAME_LENGTH
 
+#define HALF_MOVE_CLOCK_LENGTH 100
+
 #define MAX_LEGAL_MOVES 27
 #define MAX_LONG_ATTACKERS 8
 
@@ -91,10 +93,12 @@ typedef struct {
 	Bitboard legalMovesBB[2][16]; // legal moves for each piece
 	uint16_t moveCnt;
 	uint16_t totalMoves;
-	uint16_t lastPawnOrCapture;
+	uint16_t minMove;
+	int16_t lastPawnOrCapture;
 	PieceColor colorToMove;
 	int8_t enPassantFile;
-	uint16_t whenLostCR[2][2]; // when each king lost castling rights to each side
+	int8_t ogEnPassantFile;
+	int16_t whenLostCR[2][2]; // when each king lost castling rights to each side
 	
 	Move history[MAX_GAME_LENGTH];
 } Game;
@@ -106,9 +110,13 @@ typedef enum : int8_t {
 
 void initGame(Game* game);
 
+void initGameFEN(Game* game, char* FEN);
+
 void printBoard(const Game* game);
 
 void printBoardFlipped(const Game* game);
+
+void printMoveHistory(const Game* game);
 
 bool isPosValid(Position pos);
 
@@ -123,6 +131,8 @@ Position getPos(uint8_t rank, uint8_t file);
 Position notationToPos(char* notation);
 
 void posToNotation(Position pos, char* notation);
+
+void moveToNotation(Position from, Position to, PieceType prom, char* notation);
 
 void createPiece(PieceColor color, PieceType type,
 	uint8_t rank, uint8_t file, Game* game);
@@ -174,7 +184,7 @@ MoveType getMoveType(Position from, Position to, Game* game);
 
 void takeCastlingRights(PieceColor c, CastleSide side, Game* game);
 
-void updateCastlingRights(Position pos, Game* game);
+void updateCastlingRights(Position from, Position to, Game* game);
 
 bool isMovePromotion(Position from, Position to, const Game* game);
 
@@ -184,16 +194,6 @@ bool isPromotionValid(Position from, Position to, PieceType prom,
 bool isMoveLegal(Position from, Position to, const Game* game);
 
 bool isMoveGenerallyValid(Position from, Position to, const Game* game);
-
-bool isWhitePawnMoveLegal(Position from, Position to, const Game* game);
-bool isBlackPawnMoveLegal(Position from, Position to, const Game* game);
-bool isPawnMoveLegal(Position from, Position to, const Game* game);
-bool isKnightMoveLegal(Position from, Position to);
-bool isBishopMoveLegal(Position from, Position to, const Game* game);
-bool isRookMoveLegal(Position from, Position to, const Game* game);
-bool isQueenMoveLegal(Position from, Position to, const Game* game);
-bool isKingMoveLegal(PieceColor color, Position from, Position to,
-	const Game* game);
 
 void undoMove(Game* game);
 
@@ -225,24 +225,3 @@ void calculateGame(Game* game);
 
 bool isUnderCheck(PieceColor color, const Game* game);
 
-bool isMated(PieceColor color, const Game* game);
-
-bool hasLegalMoves(PieceColor color, const Game* game);
-
-bool isPieceAttacking(Position from, Position to, const Game* game);
-
-/*
-void calculateControlBoard(Game* game);
-
-// get pieces that control pos from a far (bishops, rooks, queens)
-int getLongAttackers(Position pos, Game* game, PieceRef attackers[]);
-
-// get long attackers affected by move
-int getAffectedAttackers(MoveInfo* move, Game* game,
-	PieceRef attackers[]);
-
-void updatePieces(MoveInfo* move, Game* game);
-
-void updateControl(PieceInfo pieces, int n, Game* game,
-	UpdateControlOption opt);
-*/

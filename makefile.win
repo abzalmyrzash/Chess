@@ -1,2 +1,0 @@
-a.exe: *.c
-	gcc -o chess.exe *.c net/*.c -lWs2_32 -lSDL3 -lSDL3_image -LC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\lib -IC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\include -LC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\lib -IC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\include

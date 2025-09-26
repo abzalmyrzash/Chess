@@ -1,0 +1,161 @@
+
+bool isWhitePawnMoveLegal(Position from, Position to, const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	PieceRef capture = game->refBoard[to];
+	if (capture == NONE) {
+		if (from_rank + 1 == to_rank && from_file == to_file) return true;
+		if (from_rank == 1 && to_rank == 3 && from_file == to_file) {
+			PieceRef between = game->refBoard[getPos(2, from_file)];
+			if (between == NONE) {
+				return true;
+			}
+		}
+	}
+	if (from_rank + 1 == to_rank && abs(from_file - to_file) == 1) {
+		if (capture != NONE) {
+			return true;
+		}
+		if (game->enPassantFile == to_file && from_rank == 4) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool isBlackPawnMoveLegal(Position from, Position to, const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	PieceRef capture = game->refBoard[to];
+	if (capture == NONE) {
+		if (from_rank - 1 == to_rank && from_file == to_file) return true;
+		if (from_rank == 6 && to_rank == 4 && from_file == to_file) {
+			PieceRef between = game->refBoard[getPos(5, from_file)];
+			if (between == NONE) {
+				return true;
+			}
+		}
+	}
+	if (from_rank - 1 == to_rank && abs(from_file - to_file) == 1) {
+		if (capture != NONE) {
+			return true;
+		}
+		if (game->enPassantFile == to_file && from_rank == 3) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool isPawnMoveLegal(Position from, Position to, const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	PieceColor color = getPieceColor(game->board[from]);
+	if (color == WHITE) return isWhitePawnMoveLegal(from, to, game);
+	else return isBlackPawnMoveLegal(from, to, game);
+}
+
+bool isKnightMoveLegal(Position from, Position to)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	if (abs(from_rank - to_rank) == 2 && abs(from_file - to_file) == 1) return true;
+	if (abs(from_rank - to_rank) == 1 && abs(from_file - to_file) == 2) return true;
+	return false;
+}
+
+bool isBishopMoveLegal(Position from, Position to, const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	if (abs(from_rank - to_rank) != abs(from_file - to_file)) return false;
+	int rankdir = from_rank > to_rank ? -1 : 1;
+	int filedir = from_file > to_file ? -1 : 1;
+	int j = from_file + filedir;
+	for (int i = from_rank + rankdir; i != to_rank; i += rankdir) {
+		if (game->refBoard[getPos(i, j)] != NONE) return false;
+		j += filedir;
+	}
+	return true;
+}
+
+bool isRookMoveLegal(Position from, Position to, const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	if (from_rank != to_rank && from_file == to_file) {
+		int rankdir = from_rank > to_rank ? -1 : 1;
+		for (int i = from_rank + rankdir; i != to_rank; i += rankdir) {
+			if (game->refBoard[getPos(i, from_file)] != NONE) return false;
+		}
+	}
+	else if (from_rank == to_rank && from_file != to_file) {
+		int filedir = from_file > to_file ? -1 : 1;
+		for (int j = from_file + filedir; j != to_file; j += filedir) {
+			if (game->refBoard[getPos(from_rank, j)] != NONE) return false;
+		}
+	}
+	else {
+		return false;
+	}
+	return true;
+}
+
+bool isQueenMoveLegal(Position from, Position to, const Game* game)
+{
+	return isBishopMoveLegal(from, to, game) || isRookMoveLegal(from, to, game);
+}
+
+bool isKingMoveLegal(PieceColor color, Position from, Position to,
+	const Game* game)
+{
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	PieceColor enemy = getEnemyColor(color);
+	if (getAttackers(to, enemy, game)) return false;
+	if (from_rank == color * 7 && from_rank == to_rank && from_file == 4) {
+		if (getAttackers(from, enemy, game)) return false;
+		uint8_t between_file;
+		if (to_file == 2) {
+			between_file = 3;
+			return isPosEmpty(getPos(from_rank, between_file), game) &&
+				!getAttackers(getPos(from_rank, between_file), enemy, game)
+				&& game->moveCnt <= game->whenLostCR[color][QUEENSIDE];
+		}
+		else if (to_file == 6) {
+			between_file = 5;
+			return isPosEmpty(getPos(from_rank, between_file), game) &&
+				!getAttackers(getPos(from_rank, between_file), enemy, game)
+				&& game->moveCnt <= game->whenLostCR[color][KINGSIDE];
+		}
+		else {
+			return (to_file == 3 || from_file == 5);
+		}
+
+	}
+	return abs(from_rank - to_rank) <= 1 && abs(from_file - to_file) <= 1;
+}
