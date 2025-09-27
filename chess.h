@@ -5,10 +5,11 @@
 
 #define NONE -1
 
-#define MAX_GAME_LENGTH 10000
+#define MAX_GAME_LENGTH 10000 // probably enough
 #define NEVER MAX_GAME_LENGTH
+#define MAX_PAWN_OR_CAPS 128 // 30 captures + 16 * 6 pawn moves + 2 extra
 
-#define HALF_MOVE_CLOCK_LENGTH 100
+#define NUM_HALF_MOVES_FOR_DRAW 100
 
 #define MAX_LEGAL_MOVES 27
 #define MAX_LONG_ATTACKERS 8
@@ -58,6 +59,7 @@ typedef enum : int8_t {
 	PROMOTION_BISHOP = BISHOP,
 	PROMOTION_ROOK = ROOK,
 	PROMOTION_QUEEN = QUEEN,
+	PAWNMOVE,
 	DOUBLESTEP,
 	ENPASSANT,
 	CASTLE,
@@ -94,13 +96,14 @@ typedef struct {
 	uint16_t moveCnt;
 	uint16_t totalMoves;
 	uint16_t minMove;
-	int16_t lastPawnOrCapture;
 	PieceColor colorToMove;
 	int8_t enPassantFile;
 	int8_t ogEnPassantFile;
-	int16_t whenLostCR[2][2]; // when each king lost castling rights to each side
+	uint16_t whenLostCR[2][2]; // when each king lost castling rights to each side
 	
 	Move history[MAX_GAME_LENGTH];
+	uint16_t pawnOrCaps[MAX_PAWN_OR_CAPS];
+	uint8_t iPawnOrCap;
 } Game;
 
 typedef enum : int8_t {
@@ -111,6 +114,8 @@ typedef enum : int8_t {
 void initGame(Game* game);
 
 void initGameFEN(Game* game, char* FEN);
+
+void gameToFEN(Game* game, char* FEN);
 
 void printBoard(const Game* game);
 
@@ -175,21 +180,29 @@ void castle(Position from, Position to, Game* game);
 
 void undoCastle(Position from, Position to, Game* game);
 
-void changeType(Position pos, PieceType type, Game* game);
-
-// function assumes move is legal, so check move legality before calling
-Move makeMove(Position from, Position to, PieceType promotion, Game* game);
-
-MoveType getMoveType(Position from, Position to, Game* game);
-
 void takeCastlingRights(PieceColor c, CastleSide side, Game* game);
 
 void updateCastlingRights(Position from, Position to, Game* game);
+
+void changeType(Position pos, PieceType type, Game* game);
+
+MoveType getMoveType(Position from, Position to, Game* game);
+
+bool isMovePawnOrCap(Move move);
+
+void pushPawnOrCap(Game* game);
+
+void popPawnOrCap(Game* game);
+
+uint16_t peekPawnOrCap(Game* game);
 
 bool isMovePromotion(Position from, Position to, const Game* game);
 
 bool isPromotionValid(Position from, Position to, PieceType prom,
 	const Game* game);
+
+// function assumes move is legal, so check move legality before calling
+Move makeMove(Position from, Position to, PieceType promotion, Game* game);
 
 bool isMoveLegal(Position from, Position to, const Game* game);
 

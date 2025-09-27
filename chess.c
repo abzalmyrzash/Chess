@@ -36,7 +36,8 @@ void initGame(Game* game)
 	game->totalMoves = 0;
 	game->moveCnt = 0;
 	game->minMove = 0;
-	game->lastPawnOrCapture = 0;
+	game->iPawnOrCap = 0;
+	game->pawnOrCaps[0] = 0;
 	game->colorToMove = WHITE;
 	game->enPassantFile = NONE;
 	game->ogEnPassantFile = NONE;
@@ -51,10 +52,12 @@ void initGame(Game* game)
 void initGameFEN(Game* game, char* FEN)
 {
 	game->state = ONGOING;
+
 	game->totalMoves = 0;
 	game->moveCnt = 0;
 	game->minMove = 0;
-	game->lastPawnOrCapture = 0;
+	game->iPawnOrCap = 0;
+	game->pawnOrCaps[0] = 0;
 
 	Position pos;
 	for (int i = 0; i < 8; i++) {
@@ -147,12 +150,12 @@ void initGameFEN(Game* game, char* FEN)
 	int numLen = sscanf(FEN + i, "%d", &halfMoveClock);
 	if (numLen == 0) return;
 
-	game->totalMoves = halfMoveClock;
-	game->moveCnt = game->totalMoves;
-	game->minMove = game->moveCnt;
-	game->lastPawnOrCapture = 0;
-
-	if (strlen(FEN + i) < numLen + 1) return;
+	if (strlen(FEN + i) < numLen + 1) {
+		game->totalMoves = halfMoveClock;
+		game->moveCnt = game->totalMoves;
+		game->minMove = game->moveCnt;
+		return;
+	}
 
 	// full move number
 	i += numLen + 1;
@@ -163,7 +166,60 @@ void initGameFEN(Game* game, char* FEN)
 	game->totalMoves = (fullMoveNumber - 1) * 2 + (game->colorToMove == BLACK);
 	game->moveCnt = game->totalMoves;
 	game->minMove = game->moveCnt;
-	game->lastPawnOrCapture = game->moveCnt - halfMoveClock;
+	game->pawnOrCaps[0] = game->moveCnt - halfMoveClock;
+}
+
+void gameToFEN(Game* game, char* FEN)
+{
+	int i = 0;
+	Position pos;
+	for (int rank = 7; rank >= 0; rank--) {
+		pos = rank << 3;
+		int emptyCnt = 0;
+		for (int file = 0; file < 8; file++) {
+			if (game->board[pos] == NONE) emptyCnt++;
+			else {
+				if (emptyCnt > 0) {
+					FEN[i++] = emptyCnt + '0';
+					emptyCnt = 0;
+				}
+				FEN[i++] = getPieceSymbol(game->board[pos]);
+			}
+			pos++;
+		}
+		if (emptyCnt > 0) {
+			FEN[i++] = emptyCnt + '0';
+		}
+		FEN[i++] = '/';
+	}
+	FEN[i] = ' ';
+
+	if (game->colorToMove == WHITE) FEN[i++] = 'w';
+	else FEN[i++] = 'b';
+	FEN[i++] = ' ';
+	int i0 = i;
+
+	if (game->whenLostCR[WHITE][KINGSIDE] > game->totalMoves) FEN[i++] = 'K';
+	if (game->whenLostCR[WHITE][QUEENSIDE] > game->totalMoves) FEN[i++] = 'Q';
+	if (game->whenLostCR[BLACK][KINGSIDE] > game->totalMoves) FEN[i++] = 'k';
+	if (game->whenLostCR[BLACK][QUEENSIDE] > game->totalMoves) FEN[i++] = 'q';
+	// i == i0 only if neither of the four conditions above triggered
+	if (i == i0) FEN[i++] = '-';
+	FEN[i++] = ' ';
+	
+	if (game->enPassantFile != NONE) {
+		FEN[i++] = game->enPassantFile + 'a';
+		FEN[i++] = (game->colorToMove == WHITE) ? '4' : '3';
+	} else {
+		FEN[i++] = '-';
+	}
+	FEN[i++] = ' ';
+
+	int halfMoveClock = game->moveCnt - peekPawnOrCap(game);
+	i += sprintf(FEN + i, "%d ", halfMoveClock);
+
+	int totalMoves = game->moveCnt / 2 + 1;
+	sprintf(FEN + i, "%d", totalMoves);
 }
 
 void createPiece(PieceColor color, PieceType type,
@@ -411,7 +467,7 @@ void undoCastle(Position from, Position to, Game* game)
 void takeCastlingRights(PieceColor c, CastleSide side, Game* game)
 {
 	if (game->whenLostCR[c][side] > game->moveCnt)
-		game->whenLostCR[c][side] = game->moveCnt;
+		game->whenLostCR[c][side] = game->moveCnt + 1;
 }
 
 // must be called when making a new move
@@ -425,7 +481,7 @@ void updateCastlingRights(Position from, Position to, Game* game)
 	// the moves that we undid, if so reset whenLostCR to NEVER.
 		for (int i = 0; i < 2; i++) {
 			for (int j = 0; j < 2; j++) {
-				if (game->whenLostCR[i][j] >= game->moveCnt) {
+				if (game->whenLostCR[i][j] > game->moveCnt) {
 					game->whenLostCR[i][j] = NEVER;
 				}
 			}
@@ -608,6 +664,53 @@ bool isPromotionValid(Position from, Position to, PieceType prom,
 	return prom >= KNIGHT && prom <= QUEEN;
 }
 
+MoveType getMoveType(Position from, Position to, Game* game)
+{
+	PieceInfo p = game->board[from];
+	uint8_t from_rank = getRank(from);
+	uint8_t from_file = getFile(from);
+	uint8_t to_rank = getRank(to);
+	uint8_t to_file = getFile(to);
+
+	switch(getPieceType(p))
+	{
+	case PAWN:
+		if (abs(from_rank - to_rank) == 2)
+			return DOUBLESTEP;
+		if (game->enPassantFile != to_file) break;
+		if (from_rank == 4 && to_rank == 5) {
+			return ENPASSANT;
+		}
+		if (from_rank == 3 && to_rank == 2) {
+			return ENPASSANT;
+		}
+
+	case KING:
+		if (abs(from_file - to_file) == 2)
+			return CASTLE;
+		break;
+	}
+	return REGMOVE;
+}
+
+bool isMovePawnOrCap(Move move) {
+	// look at the order in MoveType enum
+	return (move.type >= PROMOTION_KNIGHT && move.type <= ENPASSANT) || (move.captured != NONE);
+}
+
+void pushPawnOrCap(Game* game) {
+	game->pawnOrCaps[++game->iPawnOrCap] = game->moveCnt + 1;
+}
+
+void popPawnOrCap(Game* game) {
+	assert(game->iPawnOrCap > 0);
+	game->iPawnOrCap--;
+}
+
+uint16_t peekPawnOrCap(Game* game) {
+	return game->pawnOrCaps[game->iPawnOrCap];
+}
+
 // function assumes move is legal, so check move legality before calling
 Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 {
@@ -621,11 +724,11 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 	switch (move.type)
 	{
 	case REGMOVE:
-		if (getPieceType(game->board[from] == PAWN))
-			game->lastPawnOrCapture = game->moveCnt + 1;
+		if (getPieceType(game->board[from] == PAWN)) {
+			move.type = PAWNMOVE;
+		}
 		if (isPosEmpty(to, game) == false) {
 			move.captured = capturePiece(to, game);
-			game->lastPawnOrCapture = game->moveCnt + 1;
 		}
 		movePiece(from, to, game);
 		if (promotion != NONE) {
@@ -636,17 +739,19 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 	case DOUBLESTEP:
 		movePiece(from, to, game);
 		game->enPassantFile = getFile(from);
-		game->lastPawnOrCapture = game->moveCnt + 1;
 		break;
 	case ENPASSANT:
 		move.captured = enPassant(from, to, game);
-		game->lastPawnOrCapture = game->moveCnt + 1;
 		break;
 	case CASTLE:
 		castle(from, to, game);
 		break;
 	default:
 		break;
+	}
+
+	if(isMovePawnOrCap(move)) {
+		pushPawnOrCap(game);
 	}
 
 	updateCastlingRights(from, to, game);
@@ -664,9 +769,11 @@ void undoMove(Game* game)
 	Move move = game->history[--game->moveCnt];
 	Position from = move.from;
 	Position to = move.to;
+
 	switch(move.type)
 	{
 	case REGMOVE:
+	case PAWNMOVE:
 		movePiece(to, from, game);
 		if (move.captured != NONE) {
 			undoCapture(to, move.captured, game);
@@ -689,6 +796,11 @@ void undoMove(Game* game)
 		}
 		break;
 	}
+
+	if (isMovePawnOrCap(move)) {
+		popPawnOrCap(game);
+	}
+
 	game->colorToMove = getEnemyColor(game->colorToMove);
 
 	if (game->moveCnt == game->minMove) {
@@ -717,6 +829,7 @@ void redoMove(Game* game)
 	switch(move.type)
 	{
 	case REGMOVE:
+	case PAWNMOVE:
 		if (move.captured != NONE) {
 			capturePiece(to, game);
 		}
@@ -740,38 +853,14 @@ void redoMove(Game* game)
 		}
 		break;
 	}
+
+	if(isMovePawnOrCap(move)) {
+		pushPawnOrCap(game);
+	}
+
 	game->colorToMove = getEnemyColor(game->colorToMove);
 	game->moveCnt++;
 	calculateGame(game);
-}
-
-MoveType getMoveType(Position from, Position to, Game* game)
-{
-	PieceInfo p = game->board[from];
-	uint8_t from_rank = getRank(from);
-	uint8_t from_file = getFile(from);
-	uint8_t to_rank = getRank(to);
-	uint8_t to_file = getFile(to);
-
-	switch(getPieceType(p))
-	{
-	case PAWN:
-		if (abs(from_rank - to_rank) == 2)
-			return DOUBLESTEP;
-		if (game->enPassantFile != to_file) break;
-		if (from_rank == 4 && to_rank == 5) {
-			return ENPASSANT;
-		}
-		if (from_rank == 3 && to_rank == 2) {
-			return ENPASSANT;
-		}
-
-	case KING:
-		if (abs(from_file - to_file) == 2)
-			return CASTLE;
-		break;
-	}
-	return REGMOVE;
 }
 
 Move moveByNotation(char *notation, Game* game)
@@ -834,11 +923,6 @@ Move checkAndMove(Position from, Position to, PieceType prom,
 	PieceColor colorThatMoved = game->colorToMove;
 
 	move = makeMove(from, to, prom, game);
-
-//	if (isUnderCheck(colorThatMoved, game)) {
-//		undoMove(game);
-//		move.type = ILLEGAL;
-//	}
 
 	return move;
 }
@@ -1014,7 +1098,7 @@ void calculateAllAttacks(Game* game)
 			game->attacksBB[color][i] = attacksBB;
 			game->totalAttacksBB[color] |= attacksBB;
 
-			// get squares X-Rayed by sliding piece
+			// squares X-Rayed by sliding piece
 			Bitboard xRayBB = C64(0);
 
 			// if attacking enemy king
@@ -1074,7 +1158,7 @@ Bitboard getCastleMoves(Position from, PieceColor color, const Game* game)
 	uint8_t rank = getRank(from);
 	uint8_t file = getFile(from);
 	if (rank == color * 7 && file == 4) {
-		if (game->moveCnt <= game->whenLostCR[color][QUEENSIDE] &&
+		if (game->moveCnt < game->whenLostCR[color][QUEENSIDE] &&
 			game->board[from - 1] == NONE &&
 			game->board[from - 2] == NONE &&
 			game->board[from - 3] == NONE &&
@@ -1083,7 +1167,7 @@ Bitboard getCastleMoves(Position from, PieceColor color, const Game* game)
 		{
 			setBit(bb, from - 2);
 		}
-		if (game->moveCnt <= game->whenLostCR[color][KINGSIDE] &&
+		if (game->moveCnt < game->whenLostCR[color][KINGSIDE] &&
 			game->board[from + 1] == NONE &&
 			game->board[from + 2] == NONE &&
 			getAttackers(from + 1, !color, game) == 0 &&
@@ -1306,6 +1390,9 @@ void calculateAllLegalMoves(Game* game)
 
 void calculateGame(Game* game)
 {
+	if (game->moveCnt - peekPawnOrCap(game) == NUM_HALF_MOVES_FOR_DRAW) {
+		game->state = DRAW;
+	}
 	calculateAllAttacks(game);
 	calculateAllLegalMoves(game);
 }

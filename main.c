@@ -167,8 +167,12 @@ menu:
 		if (game.whenLostCR[BLACK][QUEENSIDE] == NEVER) printf("q");
 		printf("\n");
 		printf("Move cnt: %d\n", game.moveCnt);
-		printf("Last pawn move or last capture: %d\n", game.lastPawnOrCapture);
+		printf("Last pawn move or last capture: %d\n", peekPawnOrCap(&game));
 		printf("En passant file: %d\n", game.enPassantFile);
+		printf("FEN: %s\n", FEN);
+		char outFEN[100];
+		gameToFEN(&game, outFEN);
+		printf("FEN: %s\n", outFEN);
 
 		while (1) {
 			printf("Depth: ");
