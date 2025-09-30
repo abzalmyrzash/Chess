@@ -148,7 +148,7 @@ void initGameFEN(Game* game, char* FEN)
 	i += 2;
 	int halfMoveClock;
 	int numLen = sscanf(FEN + i, "%d", &halfMoveClock);
-	if (numLen == 0) return;
+	if (numLen <= 0) return;
 
 	if (strlen(FEN + i) < numLen + 1) {
 		game->totalMoves = halfMoveClock;
@@ -161,7 +161,7 @@ void initGameFEN(Game* game, char* FEN)
 	i += numLen + 1;
 	int fullMoveNumber;
 	numLen = sscanf(FEN + i, "%d", &fullMoveNumber);
-	if (numLen == 0) return;
+	if (numLen <= 0) return;
 
 	game->totalMoves = (fullMoveNumber - 1) * 2 + (game->colorToMove == BLACK);
 	game->moveCnt = game->totalMoves;
@@ -190,9 +190,9 @@ void gameToFEN(Game* game, char* FEN)
 		if (emptyCnt > 0) {
 			FEN[i++] = emptyCnt + '0';
 		}
-		FEN[i++] = '/';
+		if (rank > 0) FEN[i++] = '/';
 	}
-	FEN[i] = ' ';
+	FEN[i++] = ' ';
 
 	if (game->colorToMove == WHITE) FEN[i++] = 'w';
 	else FEN[i++] = 'b';
@@ -815,6 +815,7 @@ void undoMove(Game* game)
 		}
 	}
 
+	game->state = ONGOING;
 	calculateGame(game);
 }
 
@@ -915,7 +916,6 @@ Move checkAndMove(Position from, Position to, PieceType prom,
 		return move;
 	}
 	if (isPromotionValid(from, to, prom, game) == false) {
-		printf("Invalid promotion!\n");
 		move.type = ILLEGAL;
 		return move;
 	}
@@ -1127,13 +1127,6 @@ void calculateAllAttacks(Game* game)
 				(game->piecesBB[enemy] | game->piecesBB[color]);
 			if (middlePieces == pinBB) {
 				game->pinnedBB[enemy] |= pinBB;
-			}
-		}
-		if (game->numCheckers[enemy] > 0) {
-			if (enemy == WHITE) {
-				//printf("White is in check! (%d)\n", game->numCheckers[enemy]);
-			} else {
-				//printf("Black is in check! (%d)\n", game->numCheckers[enemy]);
 			}
 		}
 
@@ -1372,18 +1365,15 @@ void calculateAllLegalMoves(Game* game)
 		game->legalMovesBB[color][i] = legalMoves;
 	}
 	if (cnt == 0) {
-		if (!isUnderCheck(color, game)) {
-			game->state = DRAW;
-			//printf("Stalemate!\n");
+		if (!isInCheck(color, game)) {
+			game->state = STALEMATE;
 			return;
 		}
 		if (color == WHITE) {
 			game->state = BLACK_WON;
-			//printf("Black wins!\n");
 		}
 		else {
 			game->state = WHITE_WON;
-			//printf("White wins!\n");
 		}
 	}
 }
@@ -1397,7 +1387,7 @@ void calculateGame(Game* game)
 	calculateAllLegalMoves(game);
 }
 
-bool isUnderCheck(PieceColor color, const Game* game)
+bool isInCheck(PieceColor color, const Game* game)
 {
 	return game->numCheckers[color] != 0;
 }

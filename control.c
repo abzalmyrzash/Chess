@@ -6,6 +6,14 @@
 
 char sendbuf[1024];
 
+void resetSelection() {
+	selFrom = NONE;
+	selTo = NONE;
+	selPiece = NONE;
+	promotion = NONE;
+	isPromoting = false;
+}
+
 void onClick(float x, float y, Game* game, PieceColor playerColor)
 {
 	if (isPromoting) {
@@ -94,14 +102,17 @@ void onRelease(float x, float y, Game* game, PieceColor playerColor,
 		} else {
 			promPopup.x = boardX + ((7 - file) - 0.5) * squareW;
 		}
+		if (playerColor == WHITE || (playerColor == NONE && game->colorToMove == WHITE)) {
+			promPopup.y = boardY + squareH;
+		} else {
+			promPopup.y = boardY + 5 * squareH;
+		}
 		return;
 	}
 
 	makeMove:
 	Move move = checkAndMove(selFrom, selTo, promotion, game);
 	if (move.type != NONE) {
-		prevFrom = selFrom;
-		prevTo = selTo;
 		if (socket != INVALID_SOCKET) {
 			int sendlen = 3;
 			sendbuf[0] = selFrom;
@@ -137,14 +148,13 @@ int onReceive(ReceiveThreadData* data, Game* game)
 		printf("Received illegal move! (%d %d %d)\n", from, to, prom);
 		return -1;
 	} else {
-		prevFrom = from;
-		prevTo = to;
 		return data->result;
 	}
 }
 
 static bool ctrl = false;
 static bool shift = false;
+
 void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 {
 	switch(event.key)
@@ -158,12 +168,21 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 	case SDLK_Z:
 		if (ctrl && socket == INVALID_SOCKET) {
 			if (shift) redoMove(game);
-			else undoMove(game);
+			else {
+				undoMove(game);
+				resetSelection();
+			}
 		}
 		break;
 	case SDLK_Y:
 		if (ctrl && socket == INVALID_SOCKET) {
 			redoMove(game);
+			resetSelection();
+		}
+		break;
+	case SDLK_C:
+		if (ctrl) {
+			resetSelection();
 		}
 		break;
 	case SDLK_Q:
@@ -171,8 +190,33 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 			*quit = true;
 		}
 		break;
+	case SDLK_RETURN:
+		moveNotation[iMoveNotation] = '\0';
+		moveByNotation(moveNotation, game);
+		while(iMoveNotation > 0) {
+			moveNotation[--iMoveNotation] = '\0';
+		}
+		break;
+	case SDLK_BACKSPACE:
+		if (iMoveNotation == 0) break;
+		moveNotation[--iMoveNotation] = '\0';
+		break;
+	case SDLK_SPACE:
+	case SDLK_ESCAPE:
+		while(iMoveNotation > 0) {
+			moveNotation[--iMoveNotation] = '\0';
+		}
+		break;
 	default:
 		break;
+	}
+
+	if (!ctrl && (event.key >= 'a' && event.key <= 'z') 
+		|| (event.key >= '0' && event.key <= '9'))
+	{
+		if (iMoveNotation < 5) {
+			moveNotation[iMoveNotation++] = event.key;
+		}
 	}
 }
 

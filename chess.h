@@ -76,6 +76,7 @@ typedef enum {
 	ONGOING,
 	WHITE_WON,
 	BLACK_WON,
+	STALEMATE,
 	DRAW
 } GameState;
 
@@ -236,5 +237,5 @@ void calculateAllLegalMoves(Game* game);
 
 void calculateGame(Game* game);
 
-bool isUnderCheck(PieceColor color, const Game* game);
+bool isInCheck(PieceColor color, const Game* game);
 

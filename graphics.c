@@ -9,13 +9,17 @@ void renderRect(SDL_Renderer* renderer,
 			SDL_FRect* rect, int width,
 			const SDL_Color* color, const SDL_Color* borderColor)
 {
-	if (color != NULL) setColor(renderer, color);
-	SDL_RenderFillRect(renderer, rect);
-	if (borderColor != NULL) setColor(renderer, borderColor);
-	for (int i = 0; i < width; i++) {
-		SDL_FRect borderRect = {rect->x + i, rect->y + i,
-								rect->w - 2*i, rect->h - 2*i};
-		SDL_RenderRect(renderer, &borderRect);
+	if (color != NULL) {
+		setColor(renderer, color);
+		SDL_RenderFillRect(renderer, rect);
+	}
+	if (borderColor != NULL) {
+		setColor(renderer, borderColor);
+		for (int i = 0; i < width; i++) {
+			SDL_FRect borderRect = {rect->x + i, rect->y + i,
+									rect->w - 2*i, rect->h - 2*i};
+			SDL_RenderRect(renderer, &borderRect);
+		}
 	}
 }
 

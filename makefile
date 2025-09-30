@@ -1,7 +1,7 @@
 CC := gcc
-CFLAGS := -std=c17
-LDFLAGS := -LC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\lib -LC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\lib
-LDLIBS := -lWs2_32 -lSDL3 -lSDL3_image
+CFLAGS := -std=c17 -O3
+LDFLAGS := -LC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\lib -LC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\lib -LC:\libs\SDL3_ttf-3.2.2\x86_64-w64-mingw32\lib
+LDLIBS := -lWs2_32 -lSDL3 -lSDL3_image -lSDL3_ttf
 
 # Thanks to Job Vranish (https://spin.atomicobject.com/2016/08/26/makefile-c-projects/)
 TARGET_EXEC := chess.exe
@@ -10,7 +10,8 @@ BUILD_DIR := ./build
 BUILD_DIRW := build
 SRC_DIRS := . ./net
 SRC_DIRSW := net
-INC_DIRS := C:\libs\SDL3-3.2.22\x86_64-w64-mingw32\include C:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\include
+INC_DIRS := C:\libs\SDL3-3.2.22\x86_64-w64-mingw32\include C:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\include C:\libs\SDL3_ttf-3.2.2\x86_64-w64-mingw32\include
+MAKEFILE := makefile
 
 # Find all the C files we want to compile
 SRCS := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.c))
@@ -31,14 +32,17 @@ INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 CPPFLAGS := $(INC_FLAGS) -MMD -MP
 
 # The final build step.
-$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
+$(BUILD_DIR)/$(TARGET_EXEC): $(OBJS) $(MAKEFILE)
 	$(CC) $(OBJS) -o $@ $(LDFLAGS) $(LDLIBS)
 
 # Build step for C source
 $(BUILD_DIR)/%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+.PHONY: dir
+dir:
 	if not exist $(BUILD_DIRW) mkdir $(BUILD_DIRW)
 	$(foreach dir,$(SRC_DIRSW),if not exist $(BUILD_DIRW)\$(dir) mkdir $(BUILD_DIRW)\$(dir))
-	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 .PHONY: clean
 clean:
@@ -46,6 +50,7 @@ clean:
 	@echo $(OBJS)
 
 	del $(BUILD_DIRW)\*
+	$(foreach dir,$(SRC_DIRSW),del $(BUILD_DIRW)\$(dir)\* && rmdir $(BUILD_DIRW)\$(dir))
 	rmdir $(BUILD_DIRW)
 
 -include $(DEPS)

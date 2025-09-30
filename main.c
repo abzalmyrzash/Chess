@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <signal.h>
 #include "chess.h"
 #include "window.h"
 #include "control.h"
@@ -27,7 +28,12 @@ void inputFEN(char* fenBuffer, int fenLen, char** FEN) {
 	else *FEN = fenBuffer;
 }
 
+void sigintHandler(int sig) {
+	signal(SIGINT, sigintHandler);
+}
+
 int main(int argc, char** argv) {
+	//signal(SIGINT, sigintHandler);
 	if (argc > 1) {
 		int depth;
 		sscanf(argv[1], "%d", &depth);
@@ -178,7 +184,10 @@ menu:
 			printf("Depth: ");
 			scanf("%d", &depth);
 			if (depth < 0) return 0;
-			printf("Generated moves: %llu\n", generateAndCountMoves(depth, &game, false));
+			clock_t start = clock();
+			uint64_t result = generateAndCountMoves(depth, &game, false);
+			float time = (float)(clock() - start) / CLOCKS_PER_SEC;
+			printf("Generated %llu moves in %f seconds\n", result, time);
 		}
 
 		break;
@@ -207,14 +216,19 @@ menu:
 	initGameFEN(&game, FEN);
 	calculateGame(&game);
 
+	SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
 	SDL_Init(SDL_INIT_VIDEO);
+	TTF_Init();
 	SDL_Window* window;
 	SDL_Renderer* renderer;
 	window = SDL_CreateWindow(windowName, SCREEN_HEIGHT, SCREEN_WIDTH, 0);
+	SDL_RaiseWindow(window);
 	renderer = SDL_CreateRenderer(window, NULL);
 	SDL_SetRenderVSync(renderer, SDL_RENDERER_VSYNC_ADAPTIVE);
-	initWindow(renderer, playerColor);
+	loadFont();
 	loadTextures(renderer);
+	initWindow(renderer, playerColor);
+	generateTextures(renderer);
 
 	render(renderer, &game);
 	SDL_Event e;
@@ -251,7 +265,7 @@ menu:
 				break;
 			case SDL_EVENT_QUIT:
 				quit = true;
-				return 0;
+				break;
 			}
 		}
 		render(renderer, &game);
@@ -268,48 +282,4 @@ menu:
 	}
 
 	return 0;
-
-//
-
-/*
-	FILE* file = stdin;
-	char notation[10];
-	while (true) {
-		printf("%d. ", game.moveCnt + 1);
-		if (game.colorToMove == WHITE)
-			printf("White to move: ");
-		else
-			printf("Black to move: ");
-		if (fgets(notation, sizeof(notation), file) == NULL) {
-			return 0;
-		}
-		printf(notation);
-		if (strcmp(notation, "undo\n") == 0) {
-			undoMove(&game);
-			printBoard(&game);
-			continue;
-		}
-		if (strcmp(notation, "redo\n") == 0) {
-			redoMove(&game);
-			printBoard(&game);
-			continue;
-		}
-		if (strcmp(notation, "ctrl\n") == 0) {
-		//	printControlBoard(&game);
-			continue;
-		}
-		if (strcmp(notation, "exit\n") == 0) {
-			break;
-		}
-		Move move = moveByNotation(notation, &game);
-		if (move.type != NONE) {
-			if (move.type == ENPASSANT) {
-				printf("En passant!\n");
-			}
-			printBoard(&game);
-		} else {
-			printf("Illegal move!\n");
-		}
-	}
-*/
 }
