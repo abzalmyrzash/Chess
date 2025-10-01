@@ -126,6 +126,8 @@ void printMoveHistory(const Game* game);
 
 bool isPosValid(Position pos);
 
+bool isRankFileValid(int rank, int file);
+
 RankFile getRankFile(Position pos);
 
 uint8_t getRank(Position pos);

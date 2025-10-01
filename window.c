@@ -169,11 +169,14 @@ void updateGameStateLabel(SDL_Renderer* renderer, Game* game)
 	case WHITE_WON:
 		newText = "WHITE WON!";
 		break;
-	case DRAW:
-		newText = "DRAW!";
-		break;
 	case BLACK_WON:
 		newText = "BLACK WON!";
+		break;
+	case STALEMATE:
+		newText = "STALEMATE!";
+		break;
+	case DRAW:
+		newText = "DRAW!";
 		break;
 	default:
 		if (game->colorToMove == WHITE) {

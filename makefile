@@ -1,5 +1,5 @@
 CC := gcc
-CFLAGS := -std=c17 -O3
+CFLAGS := -std=c17
 LDFLAGS := -LC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\lib -LC:\libs\SDL3_image-3.2.4\x86_64-w64-mingw32\lib -LC:\libs\SDL3_ttf-3.2.2\x86_64-w64-mingw32\lib
 LDLIBS := -lWs2_32 -lSDL3 -lSDL3_image -lSDL3_ttf
 

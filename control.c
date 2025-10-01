@@ -37,9 +37,9 @@ void onClick(float x, float y, Game* game, PieceColor playerColor)
 		rank = floor((y - boardY) / squareH);
 		file = 7 - floor((x - boardX) / squareW);
 	}
+	if (isRankFileValid(rank, file) == false) goto reset;
 
 	selFrom = getPos(rank, file);
-	if (isPosValid(selFrom) == false) goto reset;
 	selPiece = game->refBoard[selFrom];
 	if (selPiece == NONE) goto reset;
 	PieceColor color = getPieceColor(getPieceByRef(selPiece, game).info);
@@ -91,6 +91,7 @@ void onRelease(float x, float y, Game* game, PieceColor playerColor,
 		rank = floor((y - boardY) / squareH);
 		file = 7 - floor((x - boardX) / squareW);
 	}
+	if (isRankFileValid(rank, file) == false) goto reset;
 
 	selTo = getPos(rank, file);
 	if (isMovePromotion(selFrom, selTo, game)

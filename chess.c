@@ -316,6 +316,11 @@ bool isPosValid(Position pos)
 	return pos >= 0 && pos < 64;
 }
 
+bool isRankFileValid(int rank, int file)
+{
+	return rank >= 0 && rank < 8 && file >= 0 && file < 8;
+}
+
 RankFile getRankFile(Position pos)
 {
 	return (RankFile){ .rank = pos >> 3, .file = pos & 0b111 };
@@ -919,8 +924,6 @@ Move checkAndMove(Position from, Position to, PieceType prom,
 		move.type = ILLEGAL;
 		return move;
 	}
-
-	PieceColor colorThatMoved = game->colorToMove;
 
 	move = makeMove(from, to, prom, game);
 
