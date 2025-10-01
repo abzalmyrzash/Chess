@@ -209,7 +209,7 @@ void gameToFEN(Game* game, char* FEN)
 	
 	if (game->enPassantFile != NONE) {
 		FEN[i++] = game->enPassantFile + 'a';
-		FEN[i++] = (game->colorToMove == WHITE) ? '4' : '3';
+		FEN[i++] = (game->colorToMove == WHITE) ? '6' : '3';
 	} else {
 		FEN[i++] = '-';
 	}
@@ -729,7 +729,7 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 	switch (move.type)
 	{
 	case REGMOVE:
-		if (getPieceType(game->board[from] == PAWN)) {
+		if (getPieceType(game->board[from]) == PAWN) {
 			move.type = PAWNMOVE;
 		}
 		if (isPosEmpty(to, game) == false) {

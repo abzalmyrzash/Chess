@@ -190,6 +190,15 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 			resetSelection();
 		}
 		break;
+	
+	case SDLK_F:
+		if (ctrl) {
+			static char FEN[100];
+			gameToFEN(game, FEN);
+			printf("FEN: %s (copied to clipboard automatically)\n", FEN);
+			SDL_SetClipboardText(FEN);
+		}
+		break;
 
 	case SDLK_Q:
 		if (ctrl) {
