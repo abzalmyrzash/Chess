@@ -197,6 +197,7 @@ void updateGameStateLabel(SDL_Renderer* renderer, Game* game)
 	}
 	if (gameStateLabel.text != newText) {
 		gameStateLabel.text = newText;
+		gameStateLabel.needsUpdate = true;
 		updateLabelTexture(renderer, &gameStateLabel);
 	}
 }

@@ -163,9 +163,11 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 	case SDLK_LCTRL:
 		ctrl = true;
 		break;
+
 	case SDLK_LSHIFT:
 		shift = true;
 		break;
+
 	case SDLK_Z:
 		if (ctrl && socket == INVALID_SOCKET) {
 			if (shift) redoMove(game);
@@ -175,39 +177,49 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 			}
 		}
 		break;
+
 	case SDLK_Y:
 		if (ctrl && socket == INVALID_SOCKET) {
 			redoMove(game);
 			resetSelection();
 		}
 		break;
+
 	case SDLK_C:
 		if (ctrl) {
 			resetSelection();
 		}
 		break;
+
 	case SDLK_Q:
 		if (ctrl) {
 			*quit = true;
 		}
 		break;
+
 	case SDLK_RETURN:
 		moveNotation[iMoveNotation] = '\0';
 		moveByNotation(moveNotation, game);
 		while(iMoveNotation > 0) {
 			moveNotation[--iMoveNotation] = '\0';
 		}
+		moveNotationLabel.needsUpdate = true;
 		break;
+
 	case SDLK_BACKSPACE:
 		if (iMoveNotation == 0) break;
 		moveNotation[--iMoveNotation] = '\0';
+		moveNotationLabel.needsUpdate = true;
 		break;
+
 	case SDLK_SPACE:
 	case SDLK_ESCAPE:
 		while(iMoveNotation > 0) {
 			moveNotation[--iMoveNotation] = '\0';
 		}
+		moveNotationLabel.needsUpdate = true;
 		break;
+
 	default:
 		break;
 	}
@@ -217,6 +229,7 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 	{
 		if (iMoveNotation < 5) {
 			moveNotation[iMoveNotation++] = event.key;
+			moveNotationLabel.needsUpdate = true;
 		}
 	}
 }

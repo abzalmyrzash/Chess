@@ -1,6 +1,7 @@
 #pragma once
 #include "chess.h"
 #include "graphics.h"
+#include "Label.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
@@ -20,6 +21,7 @@ extern const PieceType promOptions[2][2];
 
 extern char moveNotation[6];
 extern int iMoveNotation;
+extern Label moveNotationLabel;
 
 void loadTextures(SDL_Renderer* renderer);
 void generateTextures(SDL_Renderer* renderer);

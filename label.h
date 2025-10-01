@@ -10,6 +10,7 @@ typedef struct {
 	SDL_FRect dstRect;
 	SDL_Color color;
 	SDL_Texture* texture;
+	bool needsUpdate;
 } Label;
 
 void initLabel(Label* label, char* text, TTF_Font* font,

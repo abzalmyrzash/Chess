@@ -10,6 +10,7 @@ void initLabel(Label* label, char* text, TTF_Font* font,
 	label->color = color;
 	label->dstRect.x = rect.x;
 	label->dstRect.y = rect.y;
+	label->needsUpdate = false;
 }
 
 bool updateLabelText(Label* label, char* text)
@@ -40,8 +41,10 @@ void createLabelTexture(SDL_Renderer* renderer, Label* label)
 
 void updateLabelTexture(SDL_Renderer* renderer, Label* label)
 {
+	if (label->needsUpdate == false) return;
 	SDL_DestroyTexture(label->texture);
 	createLabelTexture(renderer, label);
+	label->needsUpdate = false;
 }
 
 void renderLabel(SDL_Renderer* renderer, Label* label)
