@@ -716,6 +716,11 @@ uint16_t peekPawnOrCap(Game* game) {
 	return game->pawnOrCaps[game->iPawnOrCap];
 }
 
+uint8_t getHalfMoveClock(Game* game)
+{
+	return game->moveCnt - peekPawnOrCap(game);
+}
+
 // function assumes move is legal, so check move legality before calling
 Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 {
@@ -1383,7 +1388,7 @@ void calculateAllLegalMoves(Game* game)
 
 void calculateGame(Game* game)
 {
-	if (game->moveCnt - peekPawnOrCap(game) == NUM_HALF_MOVES_FOR_DRAW) {
+	if (getHalfMoveClock(game) >= NUM_HALF_MOVES_FOR_DRAW) {
 		game->state = DRAW;
 	}
 	calculateAllAttacks(game);

@@ -9,7 +9,7 @@
 #define NEVER MAX_GAME_LENGTH
 #define MAX_PAWN_OR_CAPS 128 // 30 captures + 16 * 6 pawn moves + 2 extra
 
-#define NUM_HALF_MOVES_FOR_DRAW 100
+#define NUM_HALF_MOVES_FOR_DRAW 4
 
 #define MAX_LEGAL_MOVES 27
 #define MAX_LONG_ATTACKERS 8
@@ -198,6 +198,8 @@ void pushPawnOrCap(Game* game);
 void popPawnOrCap(Game* game);
 
 uint16_t peekPawnOrCap(Game* game);
+
+uint8_t getHalfMoveClock(Game* game);
 
 bool isMovePromotion(Position from, Position to, const Game* game);
 

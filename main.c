@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include <signal.h>
 #include "chess.h"
 #include "window.h"
 #include "control.h"
@@ -28,12 +27,7 @@ void inputFEN(char* fenBuffer, int fenLen, char** FEN) {
 	else *FEN = fenBuffer;
 }
 
-void sigintHandler(int sig) {
-	signal(SIGINT, sigintHandler);
-}
-
 int main(int argc, char** argv) {
-	//signal(SIGINT, sigintHandler);
 	if (argc > 1) {
 		int depth;
 		sscanf(argv[1], "%d", &depth);
