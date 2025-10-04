@@ -10,6 +10,42 @@ static const int pieceValues[5] = {
 	900, // QUEEN
 };
 
+static int pos;
+
+static const int positionalModifiers[6][64] = {
+	//PAWN
+	{
+		0,	0,	0,	0,	0,	0,	0,	0,	
+		-10,-10,-10,-10,-10,-10,-10,-10,
+		-10,-10,0,	0,	0,	0,	-10,-10,
+		-10,-10,10,	10,	10,	10,	-10,-10,
+		10,	10,	10,	10,	10,	10,	10,	10,
+		10,	10,	10,	10,	10,	10,	10,	10,
+		10,	10,	10,	10,	10,	10,	10,	10,
+		0,	0,	0,	0,	0,	0,	0,	0,	
+	},
+
+	// KNIGHT
+	{
+		-30,-20,-10,-10,-10,-10,-20,-30,
+		-20,-10,0,	0,	0,	0,	-10,-20,
+		-10,0,	10,	10,	10,	10,	-20,-10,
+		-10,0,	10,	10,	10,	10,	-20,-10,
+		-10,0,	10,	10,	10,	10,	-20,-10,
+		-10,0,	10,	10,	10,	10,	-20,-10,
+		-20,-10,0,	0,	0,	0,	-10,-20,
+		-30,-20,-10,-10,-10,-10,-20,-30,
+	},
+
+	// BISHOP
+	{
+		
+	},
+
+	{
+	},
+};
+
 int eval(Game* game)
 {
 	int total = 0;
@@ -18,10 +54,18 @@ int eval(Game* game)
 		int val = 0;
 		// start from 1 to skip the king (who is index 0)
 		for (int i = 1; i < game->cntPieces[color]; i++) {
-			if (game->pieces[color][i].pos != NONE) {
-				val += pieceValues[getPieceType(game->pieces[color][i].info)];
+			Position pos = game->pieces[color][i].pos;  
+			if (pos != NONE) {
+				PieceType type = getPieceType(game->pieces[color][i].info);
+				val += pieceValues[type];
+				if (type != PAWN || color == WHITE) {
+					val += positionalModifiers[type][pos];
+				} else {
+					val -= positionalModifiers[type][pos];
+				}
 			}
 		}
+		val += positionalModifiers[KING][game->pieces[color][0].pos];
 		total += signs[color] * val;
 	}
 	return total;
