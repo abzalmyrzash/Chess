@@ -8,6 +8,7 @@
 #include "net/server.h"
 #include "net/client.h"
 #include "test.h"
+#include "engine.h"
 
 #define SCREEN_HEIGHT 1000
 #define SCREEN_WIDTH 1000
@@ -55,6 +56,7 @@ int main(int argc, char** argv) {
 	int iResult;
 	bool offline = false;
 	bool isServer = false;
+	bool vsComp = false;
 	char* windowName;
 	PieceColor playerColor;
 	char* FEN;
@@ -63,11 +65,12 @@ int main(int argc, char** argv) {
 	Game game;
 
 menu:
-	printf("1. Play offline\n");
-	printf("2. Start server\n");
-	printf("3. Connect\n");
-	printf("4. Test move generation\n");
-	printf("5. Quit\n");
+	printf("1. Play hotseat\n");
+	printf("2. Play vs computer\n");
+	printf("3. Start server\n");
+	printf("4. Connect\n");
+	printf("5. Test move generation\n");
+	printf("6. Quit\n");
 	printf("Type option number: ");
 	int opt;
 	if (scanf("%d", &opt) != 1) {
@@ -80,15 +83,48 @@ menu:
 	{
 	case 1:
 		offline = true;
+		vsComp = false;
 		socket = INVALID_SOCKET;
-		windowName = "Chess (offline)";
+		windowName = "Chess (hotseat)";
 		playerColor = NONE;
 		break;
 
 	case 2:
+		offline = true;
+		vsComp = true;
+		socket = INVALID_SOCKET;
 		printf("Choose color\n");
 		printf("(W for White, B for Black, any other symbol for random): ");
 		char colorChar;
+		scanf("%c", &colorChar);
+		clear_stdin();
+
+		switch(colorChar)
+		{
+		case 'W':
+		case 'w':
+			playerColor = WHITE;
+			break;
+		case 'B':
+		case 'b':
+			playerColor = BLACK;
+			break;
+		default:
+			playerColor = rand() % 2;
+			break;
+		}
+
+		if (playerColor == WHITE) {
+			printf("Selected White\n");
+		} else {
+			printf("Selected Black\n");
+		}
+		windowName = "Chess (vs computer)";
+		break;
+
+	case 3:
+		printf("Choose color\n");
+		printf("(W for White, B for Black, any other symbol for random): ");
 		scanf("%c", &colorChar);
 		clear_stdin();
 
@@ -121,7 +157,7 @@ menu:
 		send(socket, (char*)&playerColor, 1, 0);
 		break;
 
-	case 3:
+	case 4:
 		char servername[256];
 		printf("Server name/IP: ");
 		scanf("%255s", servername);
@@ -148,7 +184,7 @@ menu:
 
 		break;
 
-	case 4:
+	case 5:
 		int depth;
 		inputFEN(fenBuffer, fenLen, &FEN);
 		initGameFEN(&game, FEN);
@@ -186,7 +222,7 @@ menu:
 
 		break;
 
-	case 5:
+	case 6:
 		return 0;
 		break;
 
@@ -229,13 +265,22 @@ menu:
 	bool quit = false;
 
 	while (!quit) {
-		if (recvThrData.status == NO_THREAD && playerColor != NONE &&
+		if (!offline) {
+			if (recvThrData.status == NO_THREAD && 
+				game.colorToMove != playerColor)
+			{
+				startReceiveThread(&recvThrData, 3);
+			}
+			else if (recvThrData.status == THREAD_FINISHED) {
+				if (onReceive(&recvThrData, &game) <= 0) quit = true;
+			}
+		}
+		
+		if (vsComp && game.state == ONGOING &&
 			game.colorToMove != playerColor)
 		{
-			startReceiveThread(&recvThrData, 3);
-		}
-		if (recvThrData.status == THREAD_FINISHED) {
-			if (onReceive(&recvThrData, &game) <= 0) quit = true;
+			Move compMove = getBestMove(&game);
+			makeMove(compMove.from, compMove.to, compMove.type, &game);
 		}
 
 		while(SDL_PollEvent(&e)) {

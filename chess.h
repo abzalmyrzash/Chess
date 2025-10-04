@@ -9,7 +9,7 @@
 #define NEVER MAX_GAME_LENGTH
 #define MAX_PAWN_OR_CAPS 128 // 30 captures + 16 * 6 pawn moves + 2 extra
 
-#define NUM_HALF_MOVES_FOR_DRAW 4
+#define NUM_HALF_MOVES_FOR_DRAW 100
 
 #define MAX_LEGAL_MOVES 27
 #define MAX_LONG_ATTACKERS 8

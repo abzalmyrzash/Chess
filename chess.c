@@ -741,7 +741,7 @@ Move makeMove(Position from, Position to, PieceType promotion, Game* game)
 			move.captured = capturePiece(to, game);
 		}
 		movePiece(from, to, game);
-		if (promotion != NONE) {
+		if (promotion >= KNIGHT && promotion <= QUEEN) {
 			changeType(to, promotion, game);
 			move.type = promotion;
 		}
