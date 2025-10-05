@@ -4,7 +4,7 @@ LDFLAGS := -LC:\libs\SDL3-3.2.22\x86_64-w64-mingw32\lib -LC:\libs\SDL3_image-3.2
 LDLIBS := -lWs2_32 -lSDL3 -lSDL3_image -lSDL3_ttf
 
 # Thanks to Job Vranish (https://spin.atomicobject.com/2016/08/26/makefile-c-projects/)
-TARGET_EXEC := chess.exe
+TARGET_EXEC := main.exe
 
 BUILD_DIR := ./build
 BUILD_DIRW := build

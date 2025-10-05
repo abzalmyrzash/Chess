@@ -13,30 +13,28 @@ unsigned long long generateAndCountMoves(int depth, Game* game, bool verbose) {
 		Bitboard bb = game->legalMovesBB[game->colorToMove][i];
 		if (bb) do {
 			Position to = bitScanForward(bb);
-			if (isMovePromotion(from, to, game)) {
-				PieceType prom;
+			bool isProm = isMovePromotion(from, to, game);
+			PieceType prom = NONE;
+			if (isProm) {
 				for (prom = KNIGHT; prom <= QUEEN; prom++) {
-					moveToNotation(from, to, prom, notation);
-					if (depth == 1) res = 1;
-					else {
-						makeMove(from, to, prom, game);
-						res = generateAndCountMoves(depth - 1, game, false);
-						undoMove(game);
-					}
-					cnt += res;
-					if (verbose) printf("%s %llu\n", notation, res);
+					goto generate;
+					promLoop:
 				}
 				continue;
 			}
-			moveToNotation(from, to, NONE, notation);
+		generate:
 			if (depth == 1) res = 1;
 			else {
-				makeMove(from, to, NONE, game);
+				makeMove(from, to, prom, game);
 				res = generateAndCountMoves(depth - 1, game, false);
 				undoMove(game);
 			}
 			cnt += res;
-			if (verbose) printf("%s %llu\n", notation, res);
+			if (verbose) {
+				moveToNotation(from, to, prom, notation);
+				printf("%s %llu\n", notation, res);
+			}
+			if (isProm) goto promLoop;
 		} while (bb &= bb - 1);
 	}
 	return cnt;

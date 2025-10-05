@@ -1,5 +1,5 @@
 #include "engine.h"
-#include "limits.h"
+#include <limits.h>
 #include <stdio.h>
 
 static const int pieceValues[5] = {
@@ -82,26 +82,24 @@ Move getBestMove(Game* game)
 		Bitboard bb = game->legalMovesBB[color][i];
 		if (bb) do {
 			Position to = bitScanForward(bb);
-			if (isMovePromotion(from, to, game)) {
-				for (PieceType prom = KNIGHT; prom <= QUEEN; prom++) {
-					move = makeMove(from, to, prom, game);
-					val = eval(game) * sign;
-					if (val > max) {
-						max = val;
-						bestMove = move;
-					}
-					undoMove(game);
+			bool isProm = isMovePromotion(from, to, game);
+			PieceType prom = NONE;
+			if (isProm) {
+				for (prom = KNIGHT; prom <= QUEEN; prom++) {
+					goto evalMove;
+					promLoop:
 				}
+				continue;
 			}
-			else {
-				move = makeMove(from, to, NONE, game);
-				val = eval(game) * sign;
-				if (val > max) {
-					max = val;
-					bestMove = move;
-				}
-				undoMove(game);
+		evalMove:
+			move = makeMove(from, to, NONE, game);
+			val = eval(game) * sign;
+			if (val > max) {
+				max = val;
+				bestMove = move;
 			}
+			undoMove(game);
+			if (isProm) goto promLoop;
 		} while (bb &= bb - 1);
 	}
 	return bestMove;
