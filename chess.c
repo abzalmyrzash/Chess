@@ -662,6 +662,12 @@ bool isMovePromotion(Position from, Position to, const Game* game)
 		(p == PIECE(BLACK, PAWN) && rank == 0);
 }
 
+bool isPieceGoingToPromote(Piece p)
+{
+	return (p.info == PIECE(WHITE, PAWN) && getRank(p.pos) == 6 ||
+		p.info == PIECE(BLACK, PAWN) && getRank(p.pos) == 1);
+}
+
 bool isPromotionValid(Position from, Position to, PieceType prom,
 	const Game* game)
 {
@@ -913,7 +919,7 @@ bool isMoveLegal(Position from, Position to, const Game* game)
 {
 	if (isMoveGenerallyValid(from, to, game) == false) return false;
 	PieceRef pieceRef = game->refBoard[from];
-	Bitboard legalMoves = *((Bitboard*)game->legalMovesBB + pieceRef);
+	Bitboard legalMoves = game->legalMovesBB[pieceRef & 0b1111];
 	return testBit(legalMoves, to);
 }
 
@@ -1369,9 +1375,10 @@ void calculateAllLegalMoves(Game* game)
 	for (int i = 0; i < game->cntPieces[color]; i++) {
 		Piece p = game->pieces[color][i];
 		Bitboard legalMoves = getLegalMoves(p.pos, game);
-		cnt += popCount(legalMoves);
-		game->legalMovesBB[color][i] = legalMoves;
+		cnt += popCount(legalMoves) * (isPieceGoingToPromote(p) * 3 + 1);
+		game->legalMovesBB[i] = legalMoves;
 	}
+	game->cntLegalMoves = cnt;
 	if (cnt == 0) {
 		if (!isInCheck(color, game)) {
 			game->state = STALEMATE;

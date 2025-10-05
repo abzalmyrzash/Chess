@@ -249,7 +249,7 @@ void render(SDL_Renderer* renderer, Game* game)
 		color = getPieceColor(piece.info);
 		type = getPieceType(piece.info);
 
-		Bitboard bb = game->legalMovesBB[color][selPiece & 0b1111];
+		Bitboard bb = game->legalMovesBB[selPiece & 0b1111];
 		if (bb) do {
 			Position pos = bitScanForward(bb);
 			rect = boardSquares[pos];

@@ -79,7 +79,7 @@ Move getBestMove(Game* game)
 	Move bestMove, move;
 	for (int i = 0; i < game->cntPieces[color]; i++) {
 		Position from = game->pieces[color][i].pos;
-		Bitboard bb = game->legalMovesBB[color][i];
+		Bitboard bb = game->legalMovesBB[i];
 		if (bb) do {
 			Position to = bitScanForward(bb);
 			bool isProm = isMovePromotion(from, to, game);

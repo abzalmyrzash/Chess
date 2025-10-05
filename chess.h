@@ -93,7 +93,8 @@ typedef struct {
 	Position checkerPos[2]; // where the king is being checked from
 	Bitboard checkXRayBB[2]; // squares X-Rayed through the king during check
 	Bitboard pinnedBB[2];
-	Bitboard legalMovesBB[2][16]; // legal moves for each piece
+	Bitboard legalMovesBB[16]; // legal moves for each piece of the color to move
+	uint8_t cntLegalMoves;
 	uint16_t moveCnt;
 	uint16_t totalMoves;
 	uint16_t minMove;
@@ -202,6 +203,8 @@ uint16_t peekPawnOrCap(Game* game);
 uint8_t getHalfMoveClock(Game* game);
 
 bool isMovePromotion(Position from, Position to, const Game* game);
+
+bool isPieceGoingToPromote(Piece p);
 
 bool isPromotionValid(Position from, Position to, PieceType prom,
 	const Game* game);
