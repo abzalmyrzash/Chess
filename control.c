@@ -45,7 +45,7 @@ void onClick(float x, float y, Game* game, PieceColor playerColor)
 	PieceColor color = getPieceColor(getPieceByRef(selPiece, game).info);
 	if (game->colorToMove != color) goto reset;
 	if (game->colorToMove != playerColor && playerColor != NONE) goto reset;
-	Bitboard legalMoves = *((Bitboard*)game->legalMovesBB + selPiece);
+	Bitboard legalMoves = game->legalMovesBB[selPiece & 0b1111];
 	if (legalMoves == 0) goto reset;
 	mouseX = x;
 	mouseY = y;
@@ -156,7 +156,8 @@ int onReceive(ReceiveThreadData* data, Game* game)
 static bool ctrl = false;
 static bool shift = false;
 
-void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
+void onKeyDown(SDL_KeyboardEvent event, Game* game, PieceColor playerColor,
+	SOCKET socket, bool* quit)
 {
 	switch(event.key)
 	{
@@ -208,7 +209,9 @@ void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit)
 
 	case SDLK_RETURN:
 		moveNotation[iMoveNotation] = '\0';
-		moveByNotation(moveNotation, game);
+		if (game->colorToMove == playerColor || playerColor == NONE) {
+			moveByNotation(moveNotation, game);
+		}
 		while(iMoveNotation > 0) {
 			moveNotation[--iMoveNotation] = '\0';
 		}

@@ -12,7 +12,8 @@ void onRelease(float x, float y, Game* game, PieceColor playerColor,
 
 int onReceive(ReceiveThreadData* data, Game* game);
 
-void onKeyDown(SDL_KeyboardEvent event, Game* game, SOCKET socket, bool* quit);
+void onKeyDown(SDL_KeyboardEvent event, Game* game, PieceColor playerColor,
+	SOCKET socket, bool* quit);
 
 void onKeyUp(SDL_KeyboardEvent event, Game* game);
 

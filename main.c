@@ -297,7 +297,7 @@ menu:
 					socket, &quit);
 				break;
 			case SDL_EVENT_KEY_DOWN:
-				onKeyDown(e.key, &game, socket, &quit);
+				onKeyDown(e.key, &game, playerColor, socket, &quit);
 				break;
 			case SDL_EVENT_KEY_UP:
 				onKeyUp(e.key, &game);
